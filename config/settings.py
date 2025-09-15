@@ -5,7 +5,7 @@
 import os
 from typing import Optional
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings  
 
 from utils.logger import get_logger, log_config_load
 
