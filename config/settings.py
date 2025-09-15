@@ -7,6 +7,11 @@ from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
+from utils.logger import get_logger, log_config_load
+
+# 初始化模块logger
+logger = get_logger(__name__)
+
 
 class LumiPilotSettings(BaseSettings):
     """
@@ -76,8 +81,9 @@ def get_settings() -> LumiPilotSettings:
     if _settings is None:
         try:
             _settings = LumiPilotSettings()
+            logger.info("配置加载成功", event_type="config_init")
         except Exception as e:
-            # 如果配置加载失败，提供友好的错误信息
+            logger.error("配置加载失败", error=str(e), event_type="config_error")
             raise RuntimeError(f"配置加载失败: {e}")
     return _settings
 

@@ -5,8 +5,11 @@
 from typing import Dict, Any, Optional
 
 from models.llm_client import LLMClient, ChatResponse
-from utils.logger import get_logger
+from utils.logger import get_logger, log_performance
 from config.settings import get_settings
+
+# 初始化模块logger
+logger = get_logger(__name__)
 
 
 class ChatService:
@@ -18,7 +21,6 @@ class ChatService:
     def __init__(self):
         """初始化聊天服务"""
         self.settings = get_settings()
-        self.logger = get_logger(__name__)
         self.llm_client = LLMClient()
         
         # 默认系统提示词
@@ -44,8 +46,9 @@ class ChatService:
         Returns:
             Dict[str, Any]: 标准化的JSON响应
         """
-        self.logger.info(
+        logger.info(
             "开始处理用户消息",
+            event_type="message_start",
             input_length=len(user_input),
             has_context=context is not None
         )
@@ -81,7 +84,7 @@ class ChatService:
                 )
                 
         except Exception as e:
-            self.logger.error("消息处理失败", error=str(e))
+            logger.error("消息处理失败", error=str(e), event_type="service_error")
             return self._create_error_response(f"处理失败: {str(e)}")
     
     def _create_success_response(
@@ -150,5 +153,5 @@ class ChatService:
                 }
             }
         except Exception as e:
-            self.logger.error("健康检查失败", error=str(e))
+            logger.error("健康检查失败", error=str(e), event_type="health_error")
             return self._create_error_response(f"健康检查失败: {str(e)}", code=503)

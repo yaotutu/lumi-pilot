@@ -10,7 +10,10 @@ from langchain.schema import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from config.settings import get_settings
-from utils.logger import get_logger, log_api_call, log_error
+from utils.logger import get_logger, log_api_call, log_error, log_performance
+
+# 初始化模块logger
+logger = get_logger(__name__)
 
 
 class ChatResponse(BaseModel):
@@ -31,7 +34,6 @@ class LLMClient:
     def __init__(self):
         """初始化LLM客户端"""
         self.settings = get_settings()
-        self.logger = get_logger(__name__)
         self._client: Optional[ChatOpenAI] = None
         
         # 初始化客户端
@@ -47,13 +49,14 @@ class LLMClient:
                 max_tokens=self.settings.max_tokens,
                 temperature=self.settings.temperature,
             )
-            self.logger.info(
+            logger.info(
                 "LLM客户端初始化成功",
+                event_type="client_init",
                 model=self.settings.openai_model,
                 base_url=self.settings.openai_base_url
             )
         except Exception as e:
-            self.logger.error("LLM客户端初始化失败", error=str(e))
+            logger.error("LLM客户端初始化失败", error=str(e), event_type="client_error")
             raise
     
     def chat(
@@ -109,7 +112,10 @@ class LLMClient:
                 current_model = client_params["model"]
             
             # 调用API
-            self.logger.info("开始调用LLM API", input_length=len(message), model=current_model)
+            logger.info("开始调用LLM API", 
+                       event_type="api_start",
+                       input_length=len(message), 
+                       model=current_model)
             response = temp_client.invoke(messages)
             
             # 计算调用时长
@@ -120,7 +126,7 @@ class LLMClient:
             
             # 记录API调用日志
             log_api_call(
-                logger=self.logger,
+                logger=logger,
                 model=current_model,
                 input_text=message,
                 response=response_content,
@@ -152,7 +158,7 @@ class LLMClient:
             
             # 记录错误日志
             log_error(
-                logger=self.logger,
+                logger=logger,
                 error=e,
                 context={
                     "input_message": message[:100] + "..." if len(message) > 100 else message,
@@ -208,7 +214,7 @@ class LLMClient:
             test_response = self.chat("Hello", max_tokens=10)
             return test_response.success
         except Exception as e:
-            self.logger.error("连接验证失败", error=str(e))
+            logger.error("连接验证失败", error=str(e), event_type="connection_error")
             return False
     
     def get_model_info(self) -> Dict[str, Any]:

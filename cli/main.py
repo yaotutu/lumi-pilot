@@ -8,9 +8,12 @@ from typing import Optional
 
 import click
 
-from utils.logger import setup_logging, get_logger
+from utils.logger import setup_logging, get_logger, log_config_load
 from config.settings import get_settings, validate_environment, print_current_config
 from services.chat_service import ChatService
+
+# 初始化模块logger
+logger = get_logger(__name__)
 
 
 def init_app(enable_console_log: bool = True) -> bool:
@@ -35,8 +38,7 @@ def init_app(enable_console_log: bool = True) -> bool:
             enable_file=settings.enable_file_log,
         )
         
-        logger = get_logger(__name__)
-        logger.info("Lumi Pilot 启动", version="0.1.0")
+        logger.info("Lumi Pilot 启动", version="0.1.0", event_type="app_start")
         
         return True
         
