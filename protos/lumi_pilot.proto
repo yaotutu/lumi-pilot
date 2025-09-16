@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package lumi_pilot;
+
+// Lumi Pilot AI服务
+service LumiPilotService {
+  // AI对话
+  rpc Chat(ChatRequest) returns (ChatResponse);
+}
+
+// 对话请求
+message ChatRequest {
+  string message = 1;                    // 用户消息
+}
+
+// 对话响应
+message ChatResponse {
+  bool success = 1;                      // 是否成功
+  string message = 2;                    // AI回复内容
+  string error = 3;                      // 错误信息
+  ResponseMetadata metadata = 4;         // 元数据
+}
+
+// 响应元数据
+message ResponseMetadata {
+  string request_id = 1;                 // 请求ID
+  string model = 2;                      // 模型名称
+  double duration = 3;                   // 处理时长(秒)
+  string timestamp = 4;                  // 时间戳
+}

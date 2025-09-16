@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """
-Lumi Pilot 现代化AI服务平台主入口
-
-基于全新架构，支持：
-- AI对话服务
-- AI故障检测服务
-- 统一的CLI和gRPC接口
+Lumi Pilot AI服务平台
+默认启动gRPC服务器
 
 运行方式：
-- CLI: uv run main.py 或 uv run lumi-pilot
-- 直接运行: python main.py
+- 直接启动gRPC服务器: python main.py 或 uv run main.py
+- CLI管理: uv run lumi-pilot
 """
 
-from interfaces.cli import cli
+import asyncio
+from interfaces.grpc.server import main as grpc_main
 
 if __name__ == "__main__":
-    cli()
+    asyncio.run(grpc_main())

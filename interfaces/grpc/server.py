@@ -16,8 +16,8 @@ from infrastructure.llm import LLMClient
 from infrastructure.logging import setup_logging, get_logger
 from services.chat import ChatService
 from services.fault_detection import FaultDetectionService
-from .generated import chat_pb2_grpc
-from .handlers import ChatServiceHandler
+from generated import lumi_pilot_pb2_grpc
+from .handlers import LumiPilotServiceHandler
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -65,7 +65,7 @@ class GRPCServer:
         # 创建应用
         return Application(registry)
     
-    def start(self):
+    async def start(self):
         """
         启动gRPC服务器
         """
@@ -73,14 +73,14 @@ class GRPCServer:
         
         try:
             # 创建应用实例
-            self.application = asyncio.run(self.create_application())
+            self.application = await self.create_application()
             
             # 创建gRPC服务器
             self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
             
             # 注册服务处理器
-            chat_handler = ChatServiceHandler(self.application)
-            chat_pb2_grpc.add_ChatServiceServicer_to_server(chat_handler, self.server)
+            service_handler = LumiPilotServiceHandler(self.application)
+            lumi_pilot_pb2_grpc.add_LumiPilotServiceServicer_to_server(service_handler, self.server)
             
             # 添加监听端口
             listen_addr = f"{self.host}:{self.port}"
@@ -142,7 +142,7 @@ async def main():
     
     # 创建并启动服务器
     server = GRPCServer()
-    server.start()
+    await server.start()
 
 
 if __name__ == "__main__":
