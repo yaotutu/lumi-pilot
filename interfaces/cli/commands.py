@@ -18,6 +18,7 @@ from services.fault_detection import FaultDetectionService
 from core.application import Application, ServiceRegistry
 from core.models import ServiceRequest
 from utils.personality import get_personality_manager
+from interfaces.grpc import GRPCServer
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -224,6 +225,41 @@ def validate():
 def services():
     """列出所有可用服务"""
     asyncio.run(_handle_list_services())
+
+
+@cli.group()
+def grpc():
+    """gRPC服务相关命令"""
+    pass
+
+
+@grpc.command()
+@click.option('--host', default='localhost', help='gRPC服务器主机地址')
+@click.option('--port', default=50051, help='gRPC服务器端口')
+def serve(host: str, port: int):
+    """
+    启动gRPC服务器
+    
+    启动gRPC服务器，提供AI对话等服务的gRPC接口
+    """
+    try:
+        logger.info("cli_grpc", f"启动gRPC服务器 {host}:{port}")
+        
+        # 创建并启动gRPC服务器
+        server = GRPCServer(host=host, port=port)
+        server.start()
+        
+    except KeyboardInterrupt:
+        print("\n\ngRPC服务器已停止")
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "code": 500,
+            "error": f"gRPC服务器启动失败: {str(e)}",
+            "data": {}
+        }
+        print(safe_json_dumps(error_result, ensure_ascii=False, indent=2))
+        sys.exit(1)
 
 
 async def _handle_chat_send(

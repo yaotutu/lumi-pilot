@@ -54,7 +54,13 @@ def setup_logging(
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     
-    # 只添加文件handler，控制台输出由structlog处理
+    # 添加控制台handler
+    if enable_console:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(getattr(logging, log_level.upper()))
+        root_logger.addHandler(console_handler)
+    
+    # 添加文件handler
     if enable_file:
         log_path = log_dir / log_file
         file_handler = logging.handlers.RotatingFileHandler(
