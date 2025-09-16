@@ -37,12 +37,12 @@ def safe_json_dumps(data: Dict[str, Any], **kwargs) -> str:
     return json.dumps(data, cls=DateTimeEncoder, **kwargs)
 
 
-async def create_application(character: str = None) -> Application:
+async def create_application(character_file: str = None) -> Application:
     """
     创建应用实例
     
     Args:
-        character: 使用的角色名称，如果为None则使用默认角色
+        character_file: 角色配置文件路径，如果为None则使用默认角色
         
     Returns:
         Application: 配置好的应用实例
@@ -57,7 +57,7 @@ async def create_application(character: str = None) -> Application:
     registry = ServiceRegistry()
     
     # 注册服务
-    registry.register("chat", ChatService(llm_client, character))
+    registry.register("chat", ChatService(llm_client, character_file))
     registry.register("fault_detection", FaultDetectionService(llm_client))
     
     # 创建应用
@@ -314,8 +314,17 @@ async def _handle_chat_send(
             print(safe_json_dumps(error_result, ensure_ascii=False, indent=2))
             sys.exit(1)
         
-        # 创建应用（指定角色）
-        app = await create_application(character)
+        # 确定角色文件路径
+        character_file = None
+        if character:
+            from pathlib import Path
+            character_file = Path(__file__).parent.parent.parent / "characters" / f"{character}.toml"
+            if not character_file.exists():
+                print(f"错误: 角色文件不存在: {character_file}", file=sys.stderr)
+                sys.exit(1)
+        
+        # 创建应用（指定角色文件）
+        app = await create_application(str(character_file) if character_file else None)
         
         # 准备请求数据
         payload = {

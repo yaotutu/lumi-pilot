@@ -1,73 +1,67 @@
 """
 人物角色管理模块
-简化版角色管理器，在启动时加载所有角色数据
+简化版角色管理器，只加载单个角色文件
 """
-from typing import Dict, Any, List
+from typing import Dict, Any, Optional
 from .character_loader import CharacterLoader
 
 
 class PersonalityManager:
     """人物角色管理器"""
     
-    def __init__(self, characters_dir: str = None):
+    def __init__(self, character_file: str = None):
         """
         初始化人物角色管理器
         
         Args:
-            characters_dir: 角色配置文件目录路径
+            character_file: 角色配置文件路径
         """
-        # 在启动时加载所有角色数据
-        self.loader = CharacterLoader(characters_dir)
+        # 在启动时加载单个角色数据
+        self.loader = CharacterLoader(character_file)
     
-    def get_system_prompt(self, character: str) -> str:
+    def get_system_prompt(self) -> str:
         """
         获取角色的系统提示词
         
-        Args:
-            character: 角色名称
-            
         Returns:
             str: 系统提示词
         """
-        return self.loader.format_system_prompt(character)
+        return self.loader.get_system_prompt()
     
-    def list_available_characters(self) -> List[str]:
+    def get_character_name(self) -> str:
         """
-        获取可用角色列表
+        获取角色名称
         
         Returns:
-            List[str]: 角色名称列表
+            str: 角色名称
         """
-        return self.loader.get_available_characters()
+        return self.loader.get_character_name()
     
-    def get_character_info(self, character: str) -> Dict[str, Any]:
+    def get_character_info(self) -> Dict[str, Any]:
         """
         获取角色信息
         
-        Args:
-            character: 角色名称
-            
         Returns:
             Dict[str, Any]: 角色信息
         """
-        return self.loader.get_character(character)
+        return self.loader.get_character_data()
 
 
 # 全局实例
 _personality_manager = None
 
 
-def get_personality_manager(characters_dir: str = None) -> PersonalityManager:
+def get_personality_manager(character_file: str = None) -> PersonalityManager:
     """
     获取人物角色管理器实例
     
     Args:
-        characters_dir: 角色配置文件目录路径
+        character_file: 角色配置文件路径
     
     Returns:
         PersonalityManager: 管理器实例
     """
     global _personality_manager
     if _personality_manager is None:
-        _personality_manager = PersonalityManager(characters_dir)
+        _personality_manager = PersonalityManager(character_file)
     return _personality_manager

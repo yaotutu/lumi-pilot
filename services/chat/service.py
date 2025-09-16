@@ -15,22 +15,22 @@ class ChatService:
     实现AI对话功能，符合新的服务协议
     """
     
-    def __init__(self, llm_client: LLMClient, character: Optional[str] = None):
+    def __init__(self, llm_client: LLMClient, character_file: Optional[str] = None):
         """
         初始化聊天服务
         
         Args:
             llm_client: LLM客户端实例
-            character: 使用的角色名称，如果为None则使用默认角色
+            character_file: 角色配置文件路径，如果为None则使用默认角色
         """
         self.llm_client = llm_client
         self.service_name = "chat"
-        self.character = character
-        self.personality_manager = get_personality_manager()
+        self.character_file = character_file
+        self.personality_manager = get_personality_manager(character_file)
         
         # 确定系统提示词
-        if self.character:
-            self.system_prompt = self.personality_manager.get_system_prompt(self.character)
+        if self.character_file:
+            self.system_prompt = self.personality_manager.get_system_prompt()
         else:
             self.system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
 请用中文回复，保持回答简洁明了，准确有用。"""
@@ -154,7 +154,7 @@ class ChatService:
             model_info = self.llm_client.get_model_info()
             
             # 检查角色管理器状态
-            available_characters = self.personality_manager.list_available_characters()
+            character_name = self.personality_manager.get_character_name()
             
             return HealthStatus(
                 healthy=llm_healthy,
@@ -163,8 +163,7 @@ class ChatService:
                     "llm_connected": llm_healthy,
                     "model_info": model_info,
                     "system_prompt_configured": True,
-                    "available_characters": available_characters,
-                    "characters_count": len(available_characters)
+                    "character_name": character_name
                 }
             )
         except Exception as e:
