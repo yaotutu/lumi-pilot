@@ -9,6 +9,7 @@ Lumi Pilot AI服务平台
 """
 
 import asyncio
+
 from interfaces.grpc.server import main as grpc_main
 
 if __name__ == "__main__":

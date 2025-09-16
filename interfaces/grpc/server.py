@@ -10,6 +10,7 @@ from typing import Optional
 
 import grpc
 
+
 from core.application import Application, ServiceRegistry
 from infrastructure.config import get_settings
 from infrastructure.llm import LLMClient

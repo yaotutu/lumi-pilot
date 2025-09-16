@@ -43,7 +43,7 @@ class LumiPilotServiceHandler(lumi_pilot_pb2_grpc.LumiPilotServiceServicer):
         Returns:
             lumi_pilot_pb2.ChatResponse: 对话响应
         """
-        logger.info("grpc_chat", f"收到对话请求: {request.message[:50]}...")
+        logger.info("grpc_chat", f"收到对话请求: {request.message}")
         
         try:
             # 构建服务请求
@@ -61,9 +61,11 @@ class LumiPilotServiceHandler(lumi_pilot_pb2_grpc.LumiPilotServiceServicer):
             
             # 构建响应
             if response.success:
+                ai_message = response.data.get("message", "")
+                logger.info("grpc_chat", f"返回AI回复: {ai_message}")
                 return lumi_pilot_pb2.ChatResponse(
                     success=True,
-                    message=response.data.get("message", ""),
+                    message=ai_message,
                     error="",
                     metadata=lumi_pilot_pb2.ResponseMetadata(
                         request_id=response.metadata.request_id,

@@ -81,19 +81,19 @@ class SimpleLogger:
     
     def info(self, tag: str, message: str):
         """记录信息日志"""
-        self._logger.info(message, tag=tag)
+        self._logger.info(f"[{tag}] {message}")
     
     def error(self, tag: str, message: str):
         """记录错误日志"""
-        self._logger.error(message, tag=tag)
+        self._logger.error(f"[{tag}] {message}")
     
     def warning(self, tag: str, message: str):
         """记录警告日志"""
-        self._logger.warning(message, tag=tag)
+        self._logger.warning(f"[{tag}] {message}")
     
     def debug(self, tag: str, message: str):
         """记录调试日志"""
-        self._logger.debug(message, tag=tag)
+        self._logger.debug(f"[{tag}] {message}")
 
 
 def get_logger(name: str) -> SimpleLogger:
