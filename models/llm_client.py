@@ -10,7 +10,7 @@ from langchain.schema import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from config.settings import get_settings
-from utils.logger import get_logger, log_api_call, log_error, log_performance
+from utils.logger import get_logger
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -49,14 +49,9 @@ class LLMClient:
                 max_tokens=self.settings.max_tokens,
                 temperature=self.settings.temperature,
             )
-            logger.info(
-                "LLM客户端初始化成功",
-                event_type="client_init",
-                model=self.settings.openai_model,
-                base_url=self.settings.openai_base_url
-            )
+            logger.info("llm_client", f"初始化成功: {self.settings.openai_model}")
         except Exception as e:
-            logger.error("LLM客户端初始化失败", error=str(e), event_type="client_error")
+            logger.error("llm_client", f"初始化失败: {str(e)}")
             raise
     
     def chat(
@@ -112,10 +107,7 @@ class LLMClient:
                 current_model = client_params["model"]
             
             # 调用API
-            logger.info("开始调用LLM API", 
-                       event_type="api_start",
-                       input_length=len(message), 
-                       model=current_model)
+            logger.info("llm_client", f"调用API: {current_model}")
             response = temp_client.invoke(messages)
             
             # 计算调用时长
@@ -125,15 +117,7 @@ class LLMClient:
             response_content = response.content if hasattr(response, 'content') else str(response)
             
             # 记录API调用日志
-            log_api_call(
-                logger=logger,
-                model=current_model,
-                input_text=message,
-                response=response_content,
-                duration=duration,
-                system_prompt=system_prompt,
-                **kwargs
-            )
+            logger.info("llm_client", f"API调用成功: {current_model}, 耗时{duration:.2f}s")
             
             # 构建成功响应
             return ChatResponse(
@@ -157,17 +141,7 @@ class LLMClient:
             error_msg = f"LLM API调用失败: {str(e)}"
             
             # 记录错误日志
-            log_error(
-                logger=logger,
-                error=e,
-                context={
-                    "input_message": message[:100] + "..." if len(message) > 100 else message,
-                    "system_prompt": system_prompt,
-                    "duration": duration,
-                    "model": current_model,
-                    **kwargs
-                }
-            )
+            logger.error("llm_client", f"API调用失败: {str(e)}")
             
             return ChatResponse(
                 success=False,
@@ -214,7 +188,7 @@ class LLMClient:
             test_response = self.chat("Hello", max_tokens=10)
             return test_response.success
         except Exception as e:
-            logger.error("连接验证失败", error=str(e), event_type="connection_error")
+            logger.error("llm_client", f"连接验证失败: {str(e)}")
             return False
     
     def get_model_info(self) -> Dict[str, Any]:

@@ -5,7 +5,8 @@
 from typing import Dict, Any, Optional
 
 from models.llm_client import LLMClient, ChatResponse
-from utils.logger import get_logger, log_performance
+from utils.logger import get_logger
+from utils.personality import get_personality_manager
 from config.settings import get_settings
 
 # 初始化模块logger
@@ -22,8 +23,9 @@ class ChatService:
         """初始化聊天服务"""
         self.settings = get_settings()
         self.llm_client = LLMClient()
+        self.personality_manager = get_personality_manager()
         
-        # 默认系统提示词
+        # 默认系统提示词（当没有指定人物时使用）
         self.default_system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
 请用中文回复，保持回答简洁明了，准确有用。"""
     
@@ -31,6 +33,7 @@ class ChatService:
         self,
         user_input: str,
         system_prompt: Optional[str] = None,
+        character: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -40,25 +43,26 @@ class ChatService:
         Args:
             user_input: 用户输入
             system_prompt: 自定义系统提示词
+            character: 人物名称
             context: 对话上下文信息
             **kwargs: 其他参数
             
         Returns:
             Dict[str, Any]: 标准化的JSON响应
         """
-        logger.info(
-            "开始处理用户消息",
-            event_type="message_start",
-            input_length=len(user_input),
-            has_context=context is not None
-        )
+        logger.info("chat_service", f"处理消息: {user_input[:20]}{'...' if len(user_input) > 20 else ''}")
         
         # 输入验证
         if not user_input or not user_input.strip():
             return self._create_error_response("输入不能为空")
         
-        # 使用默认系统提示词（如果未提供）
-        effective_system_prompt = system_prompt or self.default_system_prompt
+        # 确定系统提示词：优先级为 system_prompt > character > default
+        if system_prompt:
+            effective_system_prompt = system_prompt
+        elif character:
+            effective_system_prompt = self.personality_manager.get_system_prompt(character)
+        else:
+            effective_system_prompt = self.default_system_prompt
         
         # 如果有上下文，可以在这里处理上下文信息
         # 目前暂不实现上下文管理，后续可扩展
@@ -84,7 +88,7 @@ class ChatService:
                 )
                 
         except Exception as e:
-            logger.error("消息处理失败", error=str(e), event_type="service_error")
+            logger.error("chat_service", f"处理失败: {str(e)}")
             return self._create_error_response(f"处理失败: {str(e)}")
     
     def _create_success_response(
@@ -153,5 +157,5 @@ class ChatService:
                 }
             }
         except Exception as e:
-            logger.error("健康检查失败", error=str(e), event_type="health_error")
+            logger.error("chat_service", f"健康检查失败: {str(e)}")
             return self._create_error_response(f"健康检查失败: {str(e)}", code=503)

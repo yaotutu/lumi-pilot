@@ -8,9 +8,10 @@ from typing import Optional
 
 import click
 
-from utils.logger import setup_logging, get_logger, log_config_load
+from utils.logger import setup_logging, get_logger
 from config.settings import get_settings, validate_environment, print_current_config
 from services.chat_service import ChatService
+from utils.personality import get_personality_manager
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -38,7 +39,7 @@ def init_app(enable_console_log: bool = True) -> bool:
             enable_file=settings.enable_file_log,
         )
         
-        logger.info("Lumi Pilot 启动", version="0.1.0", event_type="app_start")
+        logger.info("app", "Lumi Pilot 启动")
         
         return True
         
@@ -93,12 +94,13 @@ def cli(ctx: click.Context, debug: bool, config: bool):
 @cli.command()
 @click.argument('message', required=True)
 @click.option('--system-prompt', '-s', help='自定义系统提示词')
+@click.option('--character', '-c', help='选择人物角色')
 @click.option('--temperature', '-t', type=float, help='温度参数 (0.0-2.0)')
 @click.option('--max-tokens', '-m', type=int, help='最大token数')
 @click.option('--format', '-f', type=click.Choice(['json', 'text']), default='json', help='输出格式')
 @click.pass_context
-def chat(ctx: click.Context, message: str, system_prompt: Optional[str], temperature: Optional[float], 
-         max_tokens: Optional[int], format: str):
+def chat(ctx: click.Context, message: str, system_prompt: Optional[str], character: Optional[str], 
+         temperature: Optional[float], max_tokens: Optional[int], format: str):
     """
     发送消息进行AI对话
     
@@ -106,7 +108,7 @@ def chat(ctx: click.Context, message: str, system_prompt: Optional[str], tempera
     """
     # chat命令不需要重新初始化，在主入口点已处理
     
-    _process_chat(message, system_prompt, temperature, max_tokens, format)
+    _process_chat(message, system_prompt, character, temperature, max_tokens, format)
 
 
 @cli.command()
@@ -155,6 +157,44 @@ def validate():
         sys.exit(1)
 
 
+@cli.command()
+def characters():
+    """列出可用的人物角色"""
+    try:
+        personality_manager = get_personality_manager()
+        available_characters = personality_manager.list_available_characters()
+        
+        result = {
+            "status": "success",
+            "code": 200,
+            "message": "可用人物角色列表",
+            "data": {
+                "characters": []
+            }
+        }
+        
+        for character_name in available_characters:
+            character_info = personality_manager.get_character_info(character_name)
+            result["data"]["characters"].append({
+                "name": character_name,
+                "display_name": character_info["name"],
+                "description": character_info["description"]
+            })
+        
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "code": 500,
+            "message": "",
+            "error": f"获取人物列表失败: {str(e)}",
+            "data": {}
+        }
+        print(json.dumps(error_result, ensure_ascii=False, indent=2))
+        sys.exit(1)
+
+
 def _quick_chat(message: str):
     """快速对话（不使用子命令）"""
     _process_chat(message, format='json')
@@ -163,6 +203,7 @@ def _quick_chat(message: str):
 def _process_chat(
     message: str, 
     system_prompt: Optional[str] = None,
+    character: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     format: str = 'json'
@@ -173,6 +214,7 @@ def _process_chat(
     Args:
         message: 用户消息
         system_prompt: 系统提示词
+        character: 人物角色
         temperature: 温度参数
         max_tokens: 最大token数
         format: 输出格式
@@ -205,6 +247,7 @@ def _process_chat(
         result = chat_service.process_message(
             user_input=message,
             system_prompt=system_prompt,
+            character=character,
             **kwargs
         )
         
