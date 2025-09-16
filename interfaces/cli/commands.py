@@ -17,7 +17,6 @@ from services.chat import ChatService
 from services.fault_detection import FaultDetectionService
 from core.application import Application, ServiceRegistry
 from core.models import ServiceRequest
-from utils.personality import get_personality_manager
 from interfaces.grpc import GRPCServer
 
 # 初始化模块logger
@@ -137,19 +136,16 @@ def chat():
 
 @chat.command()
 @click.argument('message', required=True)
-@click.option('--system-prompt', '-s', help='自定义系统提示词')
-@click.option('--character', '-c', help='选择人物角色')
 @click.option('--temperature', '-t', type=float, help='温度参数 (0.0-2.0)')
 @click.option('--max-tokens', '-m', type=int, help='最大token数')
 @click.option('--format', '-f', type=click.Choice(['json', 'text']), default='json', help='输出格式')
-def send(message: str, system_prompt: Optional[str], character: Optional[str], 
-         temperature: Optional[float], max_tokens: Optional[int], format: str):
+def send(message: str, temperature: Optional[float], max_tokens: Optional[int], format: str):
     """
     发送消息进行AI对话
     
     MESSAGE: 要发送的消息内容
     """
-    asyncio.run(_handle_chat_send(message, system_prompt, character, temperature, max_tokens, format))
+    asyncio.run(_handle_chat_send(message, temperature, max_tokens, format))
 
 
 @cli.group()
@@ -264,8 +260,6 @@ def serve(host: str, port: int):
 
 async def _handle_chat_send(
     message: str, 
-    system_prompt: Optional[str] = None,
-    character: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     format: str = 'json'
@@ -290,9 +284,7 @@ async def _handle_chat_send(
         
         # 准备请求数据
         payload = {
-            "message": message,
-            "system_prompt": system_prompt,
-            "character": character
+            "message": message
         }
         
         if temperature is not None:

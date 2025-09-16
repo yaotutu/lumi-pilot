@@ -5,7 +5,6 @@
 from typing import Dict, Any
 from core.models import ServiceRequest, ServiceResponse, HealthStatus
 from infrastructure.llm.client import LLMClient
-from utils.personality import get_personality_manager
 from .models import ChatRequest, ChatStreamRequest
 
 
@@ -23,11 +22,10 @@ class ChatService:
             llm_client: LLM客户端实例
         """
         self.llm_client = llm_client
-        self.personality_manager = get_personality_manager()
         self.service_name = "chat"
         
-        # 默认系统提示词
-        self.default_system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
+        # 系统提示词（由系统统一管理，不允许外部覆盖）
+        self.system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
 请用中文回复，保持回答简洁明了，准确有用。"""
     
     async def process(self, request: ServiceRequest) -> ServiceResponse:
@@ -86,11 +84,8 @@ class ChatService:
                 request_id=request_id
             )
         
-        # 确定系统提示词
-        system_prompt = self._get_effective_system_prompt(
-            chat_req.system_prompt,
-            chat_req.character
-        )
+        # 使用系统统一管理的提示词
+        system_prompt = self.system_prompt
         
         # 准备LLM参数
         llm_kwargs = {}
@@ -112,9 +107,7 @@ class ChatService:
                     "message": chat_response.message,
                     "model": chat_response.data.get("model"),
                     "input_length": chat_response.data.get("input_length"),
-                    "response_length": chat_response.data.get("response_length"),
-                    "system_prompt": system_prompt,
-                    "character": chat_req.character
+                    "response_length": chat_response.data.get("response_length")
                 },
                 service_name=self.service_name,
                 action="chat",
@@ -142,24 +135,6 @@ class ChatService:
         # 暂时使用普通聊天处理，后续可以实现真正的流式处理
         return await self._handle_chat(request, request_id)
     
-    def _get_effective_system_prompt(self, system_prompt: str = None, character: str = None) -> str:
-        """
-        获取有效的系统提示词
-        
-        Args:
-            system_prompt: 自定义系统提示词
-            character: 角色名称
-            
-        Returns:
-            str: 最终的系统提示词
-        """
-        if system_prompt:
-            return system_prompt
-        elif character:
-            return self.personality_manager.get_system_prompt(character)
-        else:
-            return self.default_system_prompt
-    
     async def health_check(self) -> HealthStatus:
         """
         检查聊天服务健康状态
@@ -178,7 +153,7 @@ class ChatService:
                 details={
                     "llm_connected": llm_healthy,
                     "model_info": model_info,
-                    "personality_manager_available": self.personality_manager is not None
+                    "system_prompt_configured": bool(self.system_prompt)
                 }
             )
         except Exception as e:
