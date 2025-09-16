@@ -4,25 +4,36 @@
 
 ## 项目概述
 
-Lumi Pilot 是基于现代化架构构建的AI服务平台，支持多种AI服务和统一的接口层。该平台采用分层架构设计，支持CLI和gRPC两种接口方式，提供AI对话和故障检测等核心功能。
+Lumi Pilot 是基于现代化架构构建的AI服务平台。项目采用分层架构设计，**默认启动gRPC服务**，为外部客户端提供AI对话服务。支持CLI管理和gRPC接口两种使用方式。
+
+## 快速启动
+
+### 主要启动方式
+```bash
+# 默认启动gRPC服务器（推荐）
+python main.py
+# 或
+uv run main.py
+```
+
+### 管理命令（可选）
+```bash
+# CLI管理功能
+uv run lumi-pilot chat send "你的消息"
+uv run lumi-pilot grpc serve
+uv run lumi-pilot health
+uv run lumi-pilot --config
+```
 
 ## 开发命令
 
-### 依赖管理和环境
+### 依赖管理
 ```bash
 # 安装依赖
 uv sync
 
 # 安装开发依赖
 uv sync --dev
-
-# 运行AI对话服务
-uv run lumi-pilot chat send "你的消息"
-uv run lumi-pilot chat send "你的消息" --temperature 0.9 --max-tokens 200
-
-# 运行故障检测服务
-uv run lumi-pilot fault analyze-logs --logs "ERROR: Connection failed"
-uv run lumi-pilot fault detect-anomaly metrics.json
 ```
 
 ### 代码质量检查
@@ -30,201 +41,152 @@ uv run lumi-pilot fault detect-anomaly metrics.json
 # 代码格式化
 uv run black lumi_pilot/
 
-# 代码检查
+# 代码检查  
 uv run ruff check lumi_pilot/
 
 # 类型检查
 uv run mypy lumi_pilot/
 ```
 
-### 应用程序命令
-```bash
-# 验证配置
-uv run lumi-pilot validate
+## 项目架构
 
-# 健康检查（所有服务）
-uv run lumi-pilot health
-
-# 显示当前配置
-uv run lumi-pilot --config
-
-# 列出所有可用服务
-uv run lumi-pilot services
-```
-
-## 现代化架构设计
-
-项目采用现代化的分层架构，支持多服务和统一接口：
-
-### 架构层次
+### 现代化分层设计
 
 ```
-┌─────────────┬─────────────┐
-│   CLI       │    gRPC     │  <- 接口层 (interfaces/)
-│   Interface │  Interface  │
-└─────────────┴─────────────┘
+lumi-pilot/
+├── main.py                         # 默认启动入口 - 直接启动gRPC服务器
+├── protos/lumi_pilot.proto         # gRPC接口定义（供各语言客户端使用）
+├── generated/                      # 自动生成的gRPC代码
+├── examples/                       # 客户端调用示例
+│   ├── python_client.py           # Python客户端示例
+│   └── other_languages.md         # 其他语言调用指南
+├── core/                          # 核心应用层
+│   ├── application.py             # 应用和服务注册表
+│   ├── protocols.py               # 服务接口协议
+│   └── models.py                  # 统一数据模型
+├── services/                      # 业务服务层
+│   ├── chat/                      # AI对话服务
+│   └── fault_detection/           # AI故障检测服务
+├── infrastructure/               # 基础设施层
+│   ├── llm/                      # LLM客户端
+│   ├── config/                   # 配置管理
+│   └── logging/                  # 日志系统
+└── interfaces/                   # 接口层
+    ├── cli/                      # CLI接口（管理用）
+    └── grpc/                     # gRPC接口（主要服务）
+```
+
+### 服务架构层次
+
+```
+┌─────────────────────────────────┐
+│         gRPC Interface          │  <- 主要接口（默认启动）
+│    localhost:50051              │
+└─────────────────────────────────┘
             │
-┌───────────────────────────┐
-│   Application Layer       │  <- 应用层 (core/)
-│   - Service Registry      │
-│   - Request Routing       │
-└───────────────────────────┘
+┌─────────────────────────────────┐
+│     Application Layer           │  <- 应用层
+│   - Service Registry            │
+│   - Unified Request Routing     │
+└─────────────────────────────────┘
             │
     ┌───────┴───────┐
-    │               │
 ┌─────────┐  ┌──────────────┐
-│ Chat    │  │ Fault        │  <- 业务服务层 (services/)
+│ Chat    │  │ Fault        │      <- 业务服务层  
 │ Service │  │ Detection    │
-│         │  │ Service      │
 └─────────┘  └──────────────┘
             │
-┌───────────────────────────┐
-│   Infrastructure Layer    │  <- 基础设施层 (infrastructure/)
-│   - LLM Client            │
-│   - Config Management     │
-│   - Logging System        │
-└───────────────────────────┘
+┌─────────────────────────────────┐
+│   Infrastructure Layer          │  <- 基础设施层
+│   - LLM Client (DeepSeek-V3)   │
+│   - Structured Logging         │
+│   - Configuration Management   │
+└─────────────────────────────────┘
 ```
 
-### 核心模块
+## gRPC接口
 
-**Core Layer** (`core/`):
-- `application.py`: 应用核心和服务注册表
-- `protocols.py`: 服务接口协议定义
-- `models.py`: 统一数据模型
+### 服务定义
+- **服务名**: `lumi_pilot.LumiPilotService`
+- **方法**: `Chat(ChatRequest) returns (ChatResponse)`  
+- **地址**: `localhost:50051`
 
-**Services Layer** (`services/`):
-- `chat/`: AI对话服务模块
-- `fault_detection/`: AI故障检测服务模块
-- 每个服务都实现统一的AIService协议
+### 接口协议
+```protobuf
+service LumiPilotService {
+  rpc Chat(ChatRequest) returns (ChatResponse);
+}
 
-**Infrastructure Layer** (`infrastructure/`):
-- `llm/`: LLM客户端和提供商抽象
-- `config/`: 配置管理和环境变量
-- `logging/`: 结构化日志系统
+message ChatRequest {
+  string message = 1;                    // 用户消息
+}
 
-**Interfaces Layer** (`interfaces/`):
-- `cli/`: 命令行接口实现
-- `grpc/`: gRPC接口实现（预留）
+message ChatResponse {
+  bool success = 1;                      // 是否成功
+  string message = 2;                    // AI回复内容
+  string error = 3;                      // 错误信息
+  ResponseMetadata metadata = 4;         // 元数据
+}
+```
 
-### 服务协议
+### 客户端调用示例
 
-所有业务服务都必须实现 `AIService` 协议：
-
+**Python**:
 ```python
-class AIService(Protocol):
-    async def process(self, request: ServiceRequest) -> ServiceResponse:
-        """处理服务请求"""
-        ...
-    
-    async def health_check(self) -> HealthStatus:
-        """健康检查"""
-        ...
-    
-    def get_service_name(self) -> str:
-        """获取服务名称"""
-        ...
-    
-    def get_supported_actions(self) -> list[str]:
-        """获取支持的操作列表"""
-        ...
+import grpc
+from generated import lumi_pilot_pb2, lumi_pilot_pb2_grpc
+
+with grpc.insecure_channel('localhost:50051') as channel:
+    client = lumi_pilot_pb2_grpc.LumiPilotServiceStub(channel)
+    request = lumi_pilot_pb2.ChatRequest(message="你好")
+    response = client.Chat(request)
+    print(response.message)
 ```
 
-### 统一数据模型
+**其他语言**: 参考 `examples/other_languages.md`
 
-```python
-# 服务请求模型
-class ServiceRequest(BaseModel):
-    action: str                          # 操作类型
-    payload: Dict[str, Any]             # 请求数据
-    context: Optional[RequestContext]    # 请求上下文
-    metadata: Optional[Dict[str, Any]]   # 元数据
+## 日志系统
 
-# 服务响应模型
-class ServiceResponse(BaseModel):
-    success: bool                        # 是否成功
-    data: Optional[Dict[str, Any]]      # 响应数据
-    error: Optional[str]                # 错误信息
-    metadata: ResponseMetadata          # 响应元数据
+### 日志格式
+```
+时间戳 [级别] [标签] 消息内容
 ```
 
-## 支持的服务
-
-### 1. AI对话服务 (Chat Service)
-
-**支持的操作**:
-- `chat`: 普通对话
-- `stream_chat`: 流式对话
-
-**CLI命令**:
-```bash
-# 基本对话
-uv run lumi-pilot chat send "你好"
-
-# 自定义参数
-uv run lumi-pilot chat send "分析这个问题" --system-prompt "你是技术专家" --temperature 0.8
-
-# 使用角色
-uv run lumi-pilot chat send "帮我写代码" --character technical
+### 典型日志流程
 ```
-
-### 2. AI故障检测服务 (Fault Detection Service)
-
-**支持的操作**:
-- `analyze_logs`: 日志分析
-- `detect_anomaly`: 异常检测
-- `diagnose_system`: 系统诊断
-
-**CLI命令**:
-```bash
-# 日志分析
-uv run lumi-pilot fault analyze-logs --logs "ERROR: Database connection failed" --log-type application
-
-# 异常检测
-uv run lumi-pilot fault detect-anomaly metrics.json --threshold 0.8
-
-# 批量日志分析
-uv run lumi-pilot fault analyze-logs --logs "Error 1" --logs "Error 2" --logs "Error 3"
+2025-09-16T07:36:50.134588Z [info] [grpc_chat] 收到对话请求: 你好
+2025-09-16T07:36:50.135030Z [info] [llm_client] 调用API: Pro/deepseek-ai/DeepSeek-V3
+2025-09-16T07:36:52.338354Z [info] [llm_client] API调用成功: Pro/deepseek-ai/DeepSeek-V3, 耗时2.20s
+2025-09-16T07:36:52.338758Z [info] [grpc_chat] 返回AI回复: 你好！我是Lumi Pilot AI助手...
 ```
 
 ## 环境变量
 
-必需变量：
+### 必需变量
 - `LUMI_OPENAI_API_KEY`: OpenAI API 密钥
 
-可选变量：
-- `LUMI_OPENAI_BASE_URL`: API 基础URL（默认: https://api.openai.com/v1）
+### 可选变量  
+- `LUMI_OPENAI_BASE_URL`: API基础URL（默认: https://api.openai.com/v1）
 - `LUMI_OPENAI_MODEL`: 模型名称（默认: gpt-3.5-turbo）
-- `LUMI_TEMPERATURE`: 温度参数 0.0-2.0（默认: 0.7）
+- `LUMI_TEMPERATURE`: 温度参数（默认: 0.7）
 - `LUMI_MAX_TOKENS`: 最大token数（默认: 1000）
 - `LUMI_LOG_LEVEL`: 日志级别（默认: INFO）
 - `LUMI_DEBUG`: 启用调试模式
 
 ## 响应格式
 
-所有服务响应都遵循标准化的JSON结构：
+所有gRPC响应遵循统一结构：
 
 ```json
 {
-  "status": "success|error",
-  "code": 200,
-  "message": "操作状态描述（如'AI对话成功'、'日志分析完成'）",
-  "error": "错误信息或null",
-  "data": {
-    "message": "AI回复内容（对话服务）",
-    "analysis_result": "分析结果（故障检测服务）",
-    "model": "使用的模型名称",
-    "input_length": 123,
-    "response_length": 456
-  },
+  "success": true,
+  "message": "AI回复内容",
+  "error": "",
   "metadata": {
-    "app_name": "Lumi Pilot",
-    "version": "0.2.0",
     "request_id": "uuid",
-    "timestamp": "iso_datetime",
-    "duration": 1.23,
-    "service_name": "chat",
-    "action": "chat"
+    "model": "Pro/deepseek-ai/DeepSeek-V3",
+    "duration": 2.20,
+    "timestamp": "2025-09-16T07:36:52.338354Z"
   }
 }
 ```
@@ -232,84 +194,49 @@ uv run lumi-pilot fault analyze-logs --logs "Error 1" --logs "Error 2" --logs "E
 ## 扩展指南
 
 ### 添加新服务
-
-1. 在 `services/` 下创建新的服务目录
+1. 在 `services/` 创建新服务模块
 2. 实现 `AIService` 协议
-3. 在 `interfaces/cli/commands.py` 中注册服务
-4. 添加相应的CLI命令
+3. 在 `core/application.py` 中注册服务
+4. 可选：添加CLI命令支持
 
-示例：
-```python
-# services/new_service/service.py
-class NewService:
-    async def process(self, request: ServiceRequest) -> ServiceResponse:
-        # 实现服务逻辑
-        pass
-    
-    async def health_check(self) -> HealthStatus:
-        # 实现健康检查
-        pass
+### gRPC接口扩展
+1. 修改 `protos/lumi_pilot.proto`
+2. 重新生成代码: `python -m grpc_tools.protoc --python_out=generated --grpc_python_out=generated --proto_path=protos protos/lumi_pilot.proto`
+3. 更新 `interfaces/grpc/handlers.py`
 
-# 在create_application()中注册
-registry.register("new_service", NewService(llm_client))
-```
+## 核心设计原则
 
-### gRPC支持
+### 简化优先
+- **单一入口**: `python main.py` 直接启动服务
+- **简洁接口**: gRPC客户端只需发送 `message` 字段
+- **统一架构**: 所有服务共享统一的处理流程
 
-架构已为gRPC支持做好准备：
-
-1. 定义 `.proto` 文件
-2. 生成gRPC代码
-3. 在 `interfaces/grpc/` 中实现gRPC服务
-4. 复用现有的 `Application` 和服务层
-
-## 编码标准
-
-### 异步优先
+### 异步优先  
 - 所有服务接口都是异步的
 - 使用 `async/await` 处理I/O操作
-- CLI通过 `asyncio.run()` 调用异步函数
+- gRPC通过事件循环桥接异步服务
 
-### 类型提示
-- 使用完整的类型提示
-- 利用 `Protocol` 定义接口
-- 使用 `Pydantic` 进行数据验证
-
-### 错误处理
-- 服务层统一错误处理模式
-- 使用 `ServiceResponse` 包装所有响应
-- 在应用层捕获和处理异常
+### 类型安全
+- 使用 `Protocol` 定义服务接口
+- 完整的类型提示和验证
+- Pydantic模型确保数据一致性
 
 ### 依赖注入
-- 通过构造函数注入依赖
-- 使用服务注册表管理服务实例
-- 避免全局状态和硬编码依赖
+- 通过服务注册表管理依赖
+- 构造函数注入，避免全局状态
+- 便于单元测试和模块替换
 
-## 项目结构
+## 开发工作流
 
-```
-lumi-pilot/
-├── core/                    # 核心应用层
-│   ├── application.py       # 应用和服务注册表
-│   ├── protocols.py         # 服务接口协议
-│   └── models.py           # 统一数据模型
-├── services/               # 业务服务层
-│   ├── chat/              # AI对话服务
-│   └── fault_detection/   # AI故障检测服务
-├── infrastructure/        # 基础设施层
-│   ├── llm/              # LLM客户端
-│   ├── config/           # 配置管理
-│   └── logging/          # 日志系统
-├── interfaces/           # 接口层
-│   ├── cli/             # CLI接口
-│   └── grpc/            # gRPC接口（预留）
-├── utils/               # 临时兼容性工具
-└── main.py             # 应用入口点
-```
+1. **启动开发服务器**: `python main.py`
+2. **测试gRPC接口**: `python examples/python_client.py`  
+3. **添加新功能**: 在相应的服务模块中实现
+4. **代码质量检查**: `uv run ruff check . && uv run mypy .`
+5. **提交代码**: 遵循项目的Git工作流
 
-这种架构设计确保了：
-- **可扩展性**: 易于添加新服务和接口
-- **可测试性**: 清晰的依赖注入和接口分离
-- **可维护性**: 分层清晰，职责分离
-- **高性能**: 异步优先设计
-- **类型安全**: 完整的类型提示和验证
+这种架构确保了：
+- **易用性**: 一条命令启动完整AI服务
+- **可扩展性**: 清晰的分层便于添加新功能  
+- **可维护性**: 统一的接口和数据模型
+- **高性能**: 异步架构和gRPC协议
+- **多语言支持**: 标准gRPC接口支持各种客户端
