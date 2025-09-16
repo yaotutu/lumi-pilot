@@ -59,7 +59,7 @@ class GRPCServer:
         # 创建服务注册表
         registry = ServiceRegistry()
         
-        # 注册服务
+        # 注册服务（gRPC使用默认角色）
         registry.register("chat", ChatService(llm_client))
         registry.register("fault_detection", FaultDetectionService(llm_client))
         

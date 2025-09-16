@@ -1,27 +1,23 @@
 """
-人物角色管理模块（临时兼容性实现）
-为了保持CLI的兼容性而保留
+人物角色管理模块
+简化版角色管理器，在启动时加载所有角色数据
 """
 from typing import Dict, Any, List
+from .character_loader import CharacterLoader
 
 
 class PersonalityManager:
     """人物角色管理器"""
     
-    def __init__(self):
-        """初始化人物角色管理器"""
-        self.characters = {
-            "default": {
-                "name": "默认助手",
-                "description": "智能、友好、专业的AI助手",
-                "system_prompt": "你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。请用中文回复，保持回答简洁明了，准确有用。"
-            },
-            "technical": {
-                "name": "技术专家",
-                "description": "专业的技术顾问和问题解决专家",
-                "system_prompt": "你是一位经验丰富的技术专家，擅长分析和解决各种技术问题。请提供准确、专业的技术建议，并用中文回复。"
-            }
-        }
+    def __init__(self, characters_dir: str = None):
+        """
+        初始化人物角色管理器
+        
+        Args:
+            characters_dir: 角色配置文件目录路径
+        """
+        # 在启动时加载所有角色数据
+        self.loader = CharacterLoader(characters_dir)
     
     def get_system_prompt(self, character: str) -> str:
         """
@@ -33,10 +29,7 @@ class PersonalityManager:
         Returns:
             str: 系统提示词
         """
-        if character in self.characters:
-            return self.characters[character]["system_prompt"]
-        else:
-            return self.characters["default"]["system_prompt"]
+        return self.loader.format_system_prompt(character)
     
     def list_available_characters(self) -> List[str]:
         """
@@ -45,7 +38,7 @@ class PersonalityManager:
         Returns:
             List[str]: 角色名称列表
         """
-        return list(self.characters.keys())
+        return self.loader.get_available_characters()
     
     def get_character_info(self, character: str) -> Dict[str, Any]:
         """
@@ -57,18 +50,24 @@ class PersonalityManager:
         Returns:
             Dict[str, Any]: 角色信息
         """
-        return self.characters.get(character, self.characters["default"])
+        return self.loader.get_character(character)
 
 
 # 全局实例
-_personality_manager = PersonalityManager()
+_personality_manager = None
 
 
-def get_personality_manager() -> PersonalityManager:
+def get_personality_manager(characters_dir: str = None) -> PersonalityManager:
     """
     获取人物角色管理器实例
+    
+    Args:
+        characters_dir: 角色配置文件目录路径
     
     Returns:
         PersonalityManager: 管理器实例
     """
+    global _personality_manager
+    if _personality_manager is None:
+        _personality_manager = PersonalityManager(characters_dir)
     return _personality_manager

@@ -2,9 +2,10 @@
 聊天服务实现
 基于现有ChatService重构为符合新架构的服务
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from core.models import ServiceRequest, ServiceResponse, HealthStatus
 from infrastructure.llm.client import LLMClient
+from utils.personality import get_personality_manager
 from .models import ChatRequest, ChatStreamRequest
 
 
@@ -14,18 +15,24 @@ class ChatService:
     实现AI对话功能，符合新的服务协议
     """
     
-    def __init__(self, llm_client: LLMClient):
+    def __init__(self, llm_client: LLMClient, character: Optional[str] = None):
         """
         初始化聊天服务
         
         Args:
             llm_client: LLM客户端实例
+            character: 使用的角色名称，如果为None则使用默认角色
         """
         self.llm_client = llm_client
         self.service_name = "chat"
+        self.character = character
+        self.personality_manager = get_personality_manager()
         
-        # 系统提示词（由系统统一管理，不允许外部覆盖）
-        self.system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
+        # 确定系统提示词
+        if self.character:
+            self.system_prompt = self.personality_manager.get_system_prompt(self.character)
+        else:
+            self.system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
 请用中文回复，保持回答简洁明了，准确有用。"""
     
     async def process(self, request: ServiceRequest) -> ServiceResponse:
@@ -84,9 +91,6 @@ class ChatService:
                 request_id=request_id
             )
         
-        # 使用系统统一管理的提示词
-        system_prompt = self.system_prompt
-        
         # 准备LLM参数
         llm_kwargs = {}
         if chat_req.temperature is not None:
@@ -97,18 +101,20 @@ class ChatService:
         # 调用LLM
         chat_response = await self.llm_client.chat(
             message=chat_req.message,
-            system_prompt=system_prompt,
+            system_prompt=self.system_prompt,
             **llm_kwargs
         )
         
         if chat_response.success:
+            response_data = {
+                "message": chat_response.message,
+                "model": chat_response.data.get("model"),
+                "input_length": chat_response.data.get("input_length"),
+                "response_length": chat_response.data.get("response_length")
+            }
+            
             return ServiceResponse.success_response(
-                data={
-                    "message": chat_response.message,
-                    "model": chat_response.data.get("model"),
-                    "input_length": chat_response.data.get("input_length"),
-                    "response_length": chat_response.data.get("response_length")
-                },
+                data=response_data,
                 service_name=self.service_name,
                 action="chat",
                 request_id=request_id
@@ -147,13 +153,18 @@ class ChatService:
             llm_healthy = await self.llm_client.validate_connection()
             model_info = self.llm_client.get_model_info()
             
+            # 检查角色管理器状态
+            available_characters = self.personality_manager.list_available_characters()
+            
             return HealthStatus(
                 healthy=llm_healthy,
                 service_name=self.service_name,
                 details={
                     "llm_connected": llm_healthy,
                     "model_info": model_info,
-                    "system_prompt_configured": bool(self.system_prompt)
+                    "system_prompt_configured": True,
+                    "available_characters": available_characters,
+                    "characters_count": len(available_characters)
                 }
             )
         except Exception as e:

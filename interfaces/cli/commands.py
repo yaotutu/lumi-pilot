@@ -37,10 +37,13 @@ def safe_json_dumps(data: Dict[str, Any], **kwargs) -> str:
     return json.dumps(data, cls=DateTimeEncoder, **kwargs)
 
 
-async def create_application() -> Application:
+async def create_application(character: str = None) -> Application:
     """
     创建应用实例
     
+    Args:
+        character: 使用的角色名称，如果为None则使用默认角色
+        
     Returns:
         Application: 配置好的应用实例
     """
@@ -54,7 +57,7 @@ async def create_application() -> Application:
     registry = ServiceRegistry()
     
     # 注册服务
-    registry.register("chat", ChatService(llm_client))
+    registry.register("chat", ChatService(llm_client, character))
     registry.register("fault_detection", FaultDetectionService(llm_client))
     
     # 创建应用
@@ -136,16 +139,17 @@ def chat():
 
 @chat.command()
 @click.argument('message', required=True)
+@click.option('--character', '-c', help='角色名称')
 @click.option('--temperature', '-t', type=float, help='温度参数 (0.0-2.0)')
 @click.option('--max-tokens', '-m', type=int, help='最大token数')
 @click.option('--format', '-f', type=click.Choice(['json', 'text']), default='json', help='输出格式')
-def send(message: str, temperature: Optional[float], max_tokens: Optional[int], format: str):
+def send(message: str, character: Optional[str], temperature: Optional[float], max_tokens: Optional[int], format: str):
     """
     发送消息进行AI对话
     
     MESSAGE: 要发送的消息内容
     """
-    asyncio.run(_handle_chat_send(message, temperature, max_tokens, format))
+    asyncio.run(_handle_chat_send(message, character, temperature, max_tokens, format))
 
 
 @cli.group()
@@ -223,6 +227,36 @@ def services():
     asyncio.run(_handle_list_services())
 
 
+@cli.command()
+def characters():
+    """列出所有可用角色"""
+    from utils.personality import get_personality_manager
+    personality_manager = get_personality_manager()
+    
+    available_chars = personality_manager.list_available_characters()
+    
+    result = {
+        "status": "success",
+        "code": 200,
+        "message": "可用角色列表",
+        "data": {
+            "characters": []
+        }
+    }
+    
+    # 获取所有角色信息
+    for char_name in available_chars:
+        char_info = personality_manager.get_character_info(char_name)
+        if char_info:
+            result["data"]["characters"].append({
+                "name": char_name,
+                "display_name": char_info.get("name", char_name),
+                "description": char_info.get("description", "")
+            })
+    
+    print(safe_json_dumps(result, ensure_ascii=False, indent=2))
+
+
 @cli.group()
 def grpc():
     """gRPC服务相关命令"""
@@ -260,6 +294,7 @@ def serve(host: str, port: int):
 
 async def _handle_chat_send(
     message: str, 
+    character: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     format: str = 'json'
@@ -279,8 +314,8 @@ async def _handle_chat_send(
             print(safe_json_dumps(error_result, ensure_ascii=False, indent=2))
             sys.exit(1)
         
-        # 创建应用
-        app = await create_application()
+        # 创建应用（指定角色）
+        app = await create_application(character)
         
         # 准备请求数据
         payload = {
