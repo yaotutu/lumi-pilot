@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-Lumi Pilot 是基于 LangChain 构建的AI对话系统，支持 OpenAI 兼容的 API。该应用程序提供命令行界面，用于AI对话并输出结构化的JSON格式响应。
+Lumi Pilot 是基于现代化架构构建的AI服务平台，支持多种AI服务和统一的接口层。该平台采用分层架构设计，支持CLI和gRPC两种接口方式，提供AI对话和故障检测等核心功能。
 
 ## 开发命令
 
@@ -16,9 +16,13 @@ uv sync
 # 安装开发依赖
 uv sync --dev
 
-# 运行应用
-uv run lumi-pilot "你的消息"
-uv run lumi-pilot chat "你的消息" --temperature 0.9 --max-tokens 200
+# 运行AI对话服务
+uv run lumi-pilot chat send "你的消息"
+uv run lumi-pilot chat send "你的消息" --temperature 0.9 --max-tokens 200
+
+# 运行故障检测服务
+uv run lumi-pilot fault analyze-logs --logs "ERROR: Connection failed"
+uv run lumi-pilot fault detect-anomaly metrics.json
 ```
 
 ### 代码质量检查
@@ -38,64 +42,149 @@ uv run mypy lumi_pilot/
 # 验证配置
 uv run lumi-pilot validate
 
-# 健康检查
+# 健康检查（所有服务）
 uv run lumi-pilot health
 
 # 显示当前配置
 uv run lumi-pilot --config
+
+# 列出所有可用服务
+uv run lumi-pilot services
 ```
 
-## 架构设计
+## 现代化架构设计
 
-项目采用分层架构，各层职责清晰分离：
+项目采用现代化的分层架构，支持多服务和统一接口：
+
+### 架构层次
+
+```
+┌─────────────┬─────────────┐
+│   CLI       │    gRPC     │  <- 接口层 (interfaces/)
+│   Interface │  Interface  │
+└─────────────┴─────────────┘
+            │
+┌───────────────────────────┐
+│   Application Layer       │  <- 应用层 (core/)
+│   - Service Registry      │
+│   - Request Routing       │
+└───────────────────────────┘
+            │
+    ┌───────┴───────┐
+    │               │
+┌─────────┐  ┌──────────────┐
+│ Chat    │  │ Fault        │  <- 业务服务层 (services/)
+│ Service │  │ Detection    │
+│         │  │ Service      │
+└─────────┘  └──────────────┘
+            │
+┌───────────────────────────┐
+│   Infrastructure Layer    │  <- 基础设施层 (infrastructure/)
+│   - LLM Client            │
+│   - Config Management     │
+│   - Logging System        │
+└───────────────────────────┘
+```
 
 ### 核心模块
-- **cli/**: 基于 Click 框架的命令行界面
-- **config/**: 使用 Pydantic 的配置管理
-- **models/**: 基于 LangChain ChatOpenAI 的大模型客户端
-- **services/**: 业务逻辑层（ChatService）
-- **utils/**: 共享工具，包括结构化日志系统
 
-### 关键组件
+**Core Layer** (`core/`):
+- `application.py`: 应用核心和服务注册表
+- `protocols.py`: 服务接口协议定义
+- `models.py`: 统一数据模型
 
-**配置系统** (`config/settings.py`):
-- 使用 Pydantic 设置，支持环境变量验证
-- 所有环境变量以 `LUMI_` 为前缀
-- 必需变量: `LUMI_OPENAI_API_KEY`
-- 可选变量: `LUMI_OPENAI_BASE_URL`, `LUMI_OPENAI_MODEL`, `LUMI_TEMPERATURE` 等
+**Services Layer** (`services/`):
+- `chat/`: AI对话服务模块
+- `fault_detection/`: AI故障检测服务模块
+- 每个服务都实现统一的AIService协议
 
-**大模型客户端** (`models/llm_client.py`):
-- LangChain ChatOpenAI 的封装器
-- 处理消息准备（SystemMessage + HumanMessage）
-- 结构化的错误处理和响应格式化
-- 支持每个请求的参数覆盖
+**Infrastructure Layer** (`infrastructure/`):
+- `llm/`: LLM客户端和提供商抽象
+- `config/`: 配置管理和环境变量
+- `logging/`: 结构化日志系统
 
-**聊天服务** (`services/chat_service.py`):
-- CLI 和 LLM 客户端之间的业务逻辑层
-- 标准化的JSON响应格式：status/code/message/data/metadata
-- 为AI助手提供中文默认系统提示词
+**Interfaces Layer** (`interfaces/`):
+- `cli/`: 命令行接口实现
+- `grpc/`: gRPC接口实现（预留）
 
-**日志系统** (`utils/logger.py`):
-- 使用 structlog 进行结构化日志记录
-- 双重输出：控制台（彩色）和文件（JSON格式）
-- 轮转文件处理器（10MB，5个备份）
-- 专门的API调用和错误日志记录函数
+### 服务协议
 
-### 响应格式
+所有业务服务都必须实现 `AIService` 协议：
 
-所有响应都遵循标准化的JSON结构：
-```json
-{
-  "status": "success|error",
-  "code": 200,
-  "message": "响应内容",
-  "data": {},
-  "metadata": {
-    "app_name": "Lumi Pilot",
-    "version": "0.1.0",
-    "timestamp": 1234567890
-  }
-}
+```python
+class AIService(Protocol):
+    async def process(self, request: ServiceRequest) -> ServiceResponse:
+        """处理服务请求"""
+        ...
+    
+    async def health_check(self) -> HealthStatus:
+        """健康检查"""
+        ...
+    
+    def get_service_name(self) -> str:
+        """获取服务名称"""
+        ...
+    
+    def get_supported_actions(self) -> list[str]:
+        """获取支持的操作列表"""
+        ...
+```
+
+### 统一数据模型
+
+```python
+# 服务请求模型
+class ServiceRequest(BaseModel):
+    action: str                          # 操作类型
+    payload: Dict[str, Any]             # 请求数据
+    context: Optional[RequestContext]    # 请求上下文
+    metadata: Optional[Dict[str, Any]]   # 元数据
+
+# 服务响应模型
+class ServiceResponse(BaseModel):
+    success: bool                        # 是否成功
+    data: Optional[Dict[str, Any]]      # 响应数据
+    error: Optional[str]                # 错误信息
+    metadata: ResponseMetadata          # 响应元数据
+```
+
+## 支持的服务
+
+### 1. AI对话服务 (Chat Service)
+
+**支持的操作**:
+- `chat`: 普通对话
+- `stream_chat`: 流式对话
+
+**CLI命令**:
+```bash
+# 基本对话
+uv run lumi-pilot chat send "你好"
+
+# 自定义参数
+uv run lumi-pilot chat send "分析这个问题" --system-prompt "你是技术专家" --temperature 0.8
+
+# 使用角色
+uv run lumi-pilot chat send "帮我写代码" --character technical
+```
+
+### 2. AI故障检测服务 (Fault Detection Service)
+
+**支持的操作**:
+- `analyze_logs`: 日志分析
+- `detect_anomaly`: 异常检测
+- `diagnose_system`: 系统诊断
+
+**CLI命令**:
+```bash
+# 日志分析
+uv run lumi-pilot fault analyze-logs --logs "ERROR: Database connection failed" --log-type application
+
+# 异常检测
+uv run lumi-pilot fault detect-anomaly metrics.json --threshold 0.8
+
+# 批量日志分析
+uv run lumi-pilot fault analyze-logs --logs "Error 1" --logs "Error 2" --logs "Error 3"
 ```
 
 ## 环境变量
@@ -111,65 +200,116 @@ uv run lumi-pilot --config
 - `LUMI_LOG_LEVEL`: 日志级别（默认: INFO）
 - `LUMI_DEBUG`: 启用调试模式
 
-## 编码标准
+## 响应格式
 
-### 代码文档要求
-**重要：所有代码都必须包含详细注释，说明以下内容：**
+所有服务响应都遵循标准化的JSON结构：
 
-1. **函数/方法目的**：说明函数的作用和存在的原因
-2. **参数说明**：详细描述每个参数的用途和期望值
-3. **返回值**：说明返回的内容和格式
-4. **业务逻辑**：复杂逻辑必须有内联注释
-5. **错误处理**：解释捕获了哪些错误以及如何处理
-6. **副作用**：任何文件操作、API调用或状态变更
-
-### 注释标准
-- 为所有函数、类和模块使用docstring
-- 为复杂逻辑块添加内联注释
-- 解释为什么这样做，而不仅仅是做了什么
-- 在非平凡函数的docstring中包含示例
-- 记录任何假设或限制
-
-### 注释结构示例
-```python
-def process_user_message(message: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    处理用户消息并返回AI响应
-    
-    这是聊天服务的核心方法，负责：
-    1. 验证输入消息的有效性
-    2. 调用LLM客户端获取AI响应 
-    3. 格式化响应为标准JSON结构
-    
-    Args:
-        message: 用户输入的消息内容，不能为空字符串
-        context: 对话上下文信息，包含会话ID、用户偏好等
-        
-    Returns:
-        Dict[str, Any]: 标准化的响应格式，包含：
-            - status: 'success' 或 'error'
-            - message: AI回复内容或错误信息
-            - data: 包含token使用量、耗时等元数据
-            
-    Raises:
-        ValueError: 当message为空或格式无效时
-        APIError: 当LLM API调用失败时
-        
-    Example:
-        >>> process_user_message("你好", {"session_id": "123"})
-        {"status": "success", "message": "你好！我是AI助手", ...}
-    """
-    # 验证输入参数 - 确保消息不为空
-    if not message or not message.strip():
-        # 返回错误响应而不是抛出异常，保持API稳定性
-        return self._create_error_response("消息不能为空")
+```json
+{
+  "status": "success|error",
+  "code": 200,
+  "message": "操作状态描述（如'AI对话成功'、'日志分析完成'）",
+  "error": "错误信息或null",
+  "data": {
+    "message": "AI回复内容（对话服务）",
+    "analysis_result": "分析结果（故障检测服务）",
+    "model": "使用的模型名称",
+    "input_length": 123,
+    "response_length": 456
+  },
+  "metadata": {
+    "app_name": "Lumi Pilot",
+    "version": "0.2.0",
+    "request_id": "uuid",
+    "timestamp": "iso_datetime",
+    "duration": 1.23,
+    "service_name": "chat",
+    "action": "chat"
+  }
+}
 ```
 
-## 项目结构考虑
+## 扩展指南
 
-- 配置管理采用 Pydantic 进行集中化和验证
-- 错误处理在各层之间遵循一致的模式
-- CLI 支持直接消息输入和子命令两种方式
-- 日志系统记录应用程序事件和详细的API调用信息
-- 系统设计兼容任何 OpenAI 兼容的 API 端点
-- **所有新代码都必须遵循上述详细的注释标准**
+### 添加新服务
+
+1. 在 `services/` 下创建新的服务目录
+2. 实现 `AIService` 协议
+3. 在 `interfaces/cli/commands.py` 中注册服务
+4. 添加相应的CLI命令
+
+示例：
+```python
+# services/new_service/service.py
+class NewService:
+    async def process(self, request: ServiceRequest) -> ServiceResponse:
+        # 实现服务逻辑
+        pass
+    
+    async def health_check(self) -> HealthStatus:
+        # 实现健康检查
+        pass
+
+# 在create_application()中注册
+registry.register("new_service", NewService(llm_client))
+```
+
+### gRPC支持
+
+架构已为gRPC支持做好准备：
+
+1. 定义 `.proto` 文件
+2. 生成gRPC代码
+3. 在 `interfaces/grpc/` 中实现gRPC服务
+4. 复用现有的 `Application` 和服务层
+
+## 编码标准
+
+### 异步优先
+- 所有服务接口都是异步的
+- 使用 `async/await` 处理I/O操作
+- CLI通过 `asyncio.run()` 调用异步函数
+
+### 类型提示
+- 使用完整的类型提示
+- 利用 `Protocol` 定义接口
+- 使用 `Pydantic` 进行数据验证
+
+### 错误处理
+- 服务层统一错误处理模式
+- 使用 `ServiceResponse` 包装所有响应
+- 在应用层捕获和处理异常
+
+### 依赖注入
+- 通过构造函数注入依赖
+- 使用服务注册表管理服务实例
+- 避免全局状态和硬编码依赖
+
+## 项目结构
+
+```
+lumi-pilot/
+├── core/                    # 核心应用层
+│   ├── application.py       # 应用和服务注册表
+│   ├── protocols.py         # 服务接口协议
+│   └── models.py           # 统一数据模型
+├── services/               # 业务服务层
+│   ├── chat/              # AI对话服务
+│   └── fault_detection/   # AI故障检测服务
+├── infrastructure/        # 基础设施层
+│   ├── llm/              # LLM客户端
+│   ├── config/           # 配置管理
+│   └── logging/          # 日志系统
+├── interfaces/           # 接口层
+│   ├── cli/             # CLI接口
+│   └── grpc/            # gRPC接口（预留）
+├── utils/               # 临时兼容性工具
+└── main.py             # 应用入口点
+```
+
+这种架构设计确保了：
+- **可扩展性**: 易于添加新服务和接口
+- **可测试性**: 清晰的依赖注入和接口分离
+- **可维护性**: 分层清晰，职责分离
+- **高性能**: 异步优先设计
+- **类型安全**: 完整的类型提示和验证

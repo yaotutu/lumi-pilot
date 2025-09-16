@@ -9,8 +9,8 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
-from config.settings import get_settings
-from utils.logger import get_logger
+from infrastructure.config.settings import get_settings
+from infrastructure.logging.logger import get_logger
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -54,7 +54,7 @@ class LLMClient:
             logger.error("llm_client", f"初始化失败: {str(e)}")
             raise
     
-    def chat(
+    async def chat(
         self, 
         message: str, 
         system_prompt: Optional[str] = None,
@@ -177,7 +177,7 @@ class LLMClient:
         else:
             yield f"错误: {response.error}"
     
-    def validate_connection(self) -> bool:
+    async def validate_connection(self) -> bool:
         """
         验证与LLM服务的连接
         
@@ -185,7 +185,7 @@ class LLMClient:
             bool: 连接是否正常
         """
         try:
-            test_response = self.chat("Hello", max_tokens=10)
+            test_response = await self.chat("Hello", max_tokens=10)
             return test_response.success
         except Exception as e:
             logger.error("llm_client", f"连接验证失败: {str(e)}")
