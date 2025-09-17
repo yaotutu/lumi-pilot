@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from fastmcp import Client
 from infrastructure.logging.logger import get_logger
-from .internal_server import create_internal_mcp_server
+from ..server import create_internal_mcp_server
 
 logger = get_logger(__name__)
 
