@@ -62,7 +62,15 @@ def setup_logging(
     
     # 添加文件handler
     if enable_file:
-        log_path = log_dir / log_file
+        # 检查log_file是否已经包含路径
+        if "/" in log_file:
+            # 如果log_file已经包含路径，直接使用
+            log_path = Path(log_file)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            # 如果log_file只是文件名，在logs目录下创建
+            log_path = log_dir / log_file
+            
         file_handler = logging.handlers.RotatingFileHandler(
             log_path,
             maxBytes=10 * 1024 * 1024,  # 10MB

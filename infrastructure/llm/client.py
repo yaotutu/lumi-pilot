@@ -33,14 +33,27 @@ class LLMClient:
     负责与LangChain和OpenAI兼容的API进行交互，支持MCP工具调用
     """
     
-    def __init__(self, mcp_manager: Optional[MCPManager] = None):
+    def __init__(self, mcp_manager: Optional[MCPManager] = None, debug: bool = True):
         """初始化LLM客户端"""
         self.settings = get_settings()
         self._client: Optional[ChatOpenAI] = None
         self.mcp_manager = mcp_manager
+        self.debug = debug
         
         # 初始化客户端
         self._init_client()
+    
+    def _debug_print(self, title: str, data: any):
+        """打印调试信息"""
+        if self.debug:
+            print(f"\n{'='*60}")
+            print(f"🔍 [LLM DEBUG] {title}")
+            print(f"{'='*60}")
+            if isinstance(data, (dict, list)):
+                print(json.dumps(data, ensure_ascii=False, indent=2))
+            else:
+                print(f"{data}")
+            print(f"{'='*60}")
     
     def _init_client(self) -> None:
         """初始化LangChain ChatOpenAI客户端"""
@@ -124,11 +137,23 @@ class LLMClient:
             # 调用API
             logger.info("llm_client", f"调用API: {current_model}")
             
+            # 打印发送给LLM的原始数据
+            self._debug_print("发送给LLM的消息", [msg.content if hasattr(msg, 'content') else str(msg) for msg in messages])
+            if tools:
+                self._debug_print("发送给LLM的工具定义", tools)
+            
             # 第一次调用LLM
             if tools:
                 response = temp_client.invoke(messages, tools=tools)
             else:
                 response = temp_client.invoke(messages)
+            
+            # 打印从LLM接收的原始数据
+            self._debug_print("从LLM接收的响应", {
+                "content": response.content if hasattr(response, 'content') else str(response),
+                "tool_calls": response.tool_calls if hasattr(response, 'tool_calls') else None,
+                "response_type": type(response).__name__
+            })
             
             # 检查是否有工具调用请求
             if tools and hasattr(response, 'tool_calls') and response.tool_calls:
@@ -152,7 +177,14 @@ class LLMClient:
                 
                 # 让LLM基于工具结果生成最终回复
                 logger.info("llm_client", "基于工具结果生成最终回复")
+                self._debug_print("发送给LLM的完整对话（包含工具结果）", [msg.content if hasattr(msg, 'content') else str(msg) for msg in conversation])
                 response = temp_client.invoke(conversation)
+                
+                # 打印最终响应
+                self._debug_print("从LLM接收的最终响应", {
+                    "content": response.content if hasattr(response, 'content') else str(response),
+                    "response_type": type(response).__name__
+                })
             
             # 计算调用时长
             duration = time.time() - start_time
@@ -215,6 +247,12 @@ class LLMClient:
             
             logger.info("llm_client", f"执行MCP工具: {tool_name} 参数: {tool_args}")
             
+            # 打印MCP工具调用的详细信息
+            self._debug_print("MCP工具调用请求", {
+                "tool_name": tool_name,
+                "arguments": tool_args
+            })
+            
             if not tool_name:
                 return "错误: 工具名称为空"
             
@@ -222,6 +260,13 @@ class LLMClient:
             if self.mcp_manager:
                 result = await self.mcp_manager.call_tool(tool_name, tool_args)
                 logger.info("llm_client", f"MCP工具调用成功: {tool_name} 结果: {result}")
+                
+                # 打印MCP工具调用的结果
+                self._debug_print("MCP工具调用结果", {
+                    "tool_name": tool_name,
+                    "result": result
+                })
+                
                 return str(result)
             else:
                 return "错误: MCP管理器未初始化"
