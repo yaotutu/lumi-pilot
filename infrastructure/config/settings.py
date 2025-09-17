@@ -3,7 +3,7 @@
 支持环境变量、默认值和验证
 """
 import os
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings  
 
@@ -40,6 +40,12 @@ class LumiPilotSettings(BaseSettings):
     # 应用配置
     app_name: str = Field(default="Lumi Pilot", description="应用名称")
     debug: bool = Field(default=False, description="调试模式")
+    
+    # MCP配置
+    mcp_servers: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="MCP服务器配置列表"
+    )
     
     @field_validator('log_level')
     @classmethod

@@ -5,6 +5,7 @@
 from typing import Dict, Any, Optional
 from core.models import ServiceRequest, ServiceResponse, HealthStatus
 from infrastructure.llm.client import LLMClient
+from infrastructure.mcp.client import MCPManager
 from utils.personality import get_personality_manager
 from .models import ChatRequest, ChatStreamRequest
 
@@ -15,15 +16,17 @@ class ChatService:
     实现AI对话功能，符合新的服务协议
     """
     
-    def __init__(self, llm_client: LLMClient, character_file: Optional[str] = None):
+    def __init__(self, llm_client: LLMClient, character_file: Optional[str] = None, mcp_manager: Optional[MCPManager] = None):
         """
         初始化聊天服务
         
         Args:
             llm_client: LLM客户端实例
             character_file: 角色配置文件路径，如果为None则使用默认角色
+            mcp_manager: MCP管理器实例
         """
         self.llm_client = llm_client
+        self.mcp_manager = mcp_manager
         self.service_name = "chat"
         self.character_file = character_file
         self.personality_manager = get_personality_manager(character_file)
@@ -98,10 +101,11 @@ class ChatService:
         if chat_req.max_tokens is not None:
             llm_kwargs['max_tokens'] = chat_req.max_tokens
         
-        # 调用LLM
+        # 调用LLM（自动启用MCP工具调用）
         chat_response = await self.llm_client.chat(
             message=chat_req.message,
             system_prompt=self.system_prompt,
+            enable_tools=True,  # 启用MCP工具调用
             **llm_kwargs
         )
         
@@ -156,6 +160,18 @@ class ChatService:
             # 检查角色管理器状态
             character_name = self.personality_manager.get_character_name()
             
+            # 检查MCP状态
+            mcp_info = {}
+            if self.mcp_manager:
+                mcp_health = self.mcp_manager.health_check()
+                mcp_info = {
+                    "mcp_enabled": True,
+                    "mcp_servers_health": mcp_health,
+                    "mcp_server_info": self.mcp_manager.get_server_info()
+                }
+            else:
+                mcp_info = {"mcp_enabled": False}
+            
             return HealthStatus(
                 healthy=llm_healthy,
                 service_name=self.service_name,
@@ -163,7 +179,8 @@ class ChatService:
                     "llm_connected": llm_healthy,
                     "model_info": model_info,
                     "system_prompt_configured": True,
-                    "character_name": character_name
+                    "character_name": character_name,
+                    **mcp_info
                 }
             )
         except Exception as e:

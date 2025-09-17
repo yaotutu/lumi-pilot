@@ -3,7 +3,7 @@
 包含服务注册表和统一的服务调用入口
 """
 import time
-from typing import Dict
+from typing import Dict, Optional
 from .protocols import AIService
 from .models import ServiceRequest, ServiceResponse
 
@@ -147,3 +147,45 @@ class Application:
             "services": service_health,
             "registered_services": self.registry.list_services()
         }
+
+
+class ApplicationBuilder:
+    """
+    应用构建器
+    负责创建和配置完整的应用实例，包括MCP初始化
+    """
+    
+    @staticmethod
+    async def create() -> Application:
+        """
+        创建完整配置的应用实例
+        
+        Returns:
+            Application: 配置好的应用实例
+        """
+        from infrastructure.config import get_settings
+        from infrastructure.llm import LLMClient
+        from infrastructure.logging import get_logger
+        from infrastructure.mcp import MCPFactory
+        from services.chat import ChatService
+        from services.fault_detection import FaultDetectionService
+        
+        logger = get_logger(__name__)
+        settings = get_settings()
+        
+        # 初始化MCP管理器
+        logger.info("application", "正在初始化MCP管理器...")
+        mcp_manager = await MCPFactory.create_with_default_config()
+        
+        # 创建基础设施（将MCP管理器传递给LLM客户端）
+        llm_client = LLMClient(mcp_manager=mcp_manager)
+        
+        # 创建服务注册表
+        registry = ServiceRegistry()
+        
+        # 注册服务
+        registry.register("chat", ChatService(llm_client, mcp_manager=mcp_manager))
+        registry.register("fault_detection", FaultDetectionService(llm_client))
+        
+        # 创建应用
+        return Application(registry)

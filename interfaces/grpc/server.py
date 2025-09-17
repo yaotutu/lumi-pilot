@@ -11,12 +11,9 @@ from typing import Optional
 import grpc
 
 
-from core.application import Application, ServiceRegistry
+from core.application import ApplicationBuilder
 from infrastructure.config import get_settings
-from infrastructure.llm import LLMClient
 from infrastructure.logging import setup_logging, get_logger
-from services.chat import ChatService
-from services.fault_detection import FaultDetectionService
 from generated import lumi_pilot_pb2_grpc
 from .handlers import LumiPilotServiceHandler
 
@@ -41,30 +38,17 @@ class GRPCServer:
         self.host = host
         self.port = port
         self.server: Optional[grpc.Server] = None
-        self.application: Optional[Application] = None
+        self.application = None
     
-    async def create_application(self) -> Application:
+    async def create_application(self):
         """
         创建应用实例
         
         Returns:
             Application: 配置好的应用实例
         """
-        # 获取配置
-        settings = get_settings()
-        
-        # 创建基础设施
-        llm_client = LLMClient()
-        
-        # 创建服务注册表
-        registry = ServiceRegistry()
-        
-        # 注册服务（gRPC使用默认角色）
-        registry.register("chat", ChatService(llm_client))
-        registry.register("fault_detection", FaultDetectionService(llm_client))
-        
-        # 创建应用
-        return Application(registry)
+        # 使用ApplicationBuilder创建完整配置的应用
+        return await ApplicationBuilder.create()
     
     async def start(self):
         """

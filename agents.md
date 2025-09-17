@@ -6,6 +6,8 @@
 
 Lumi Pilot 是基于现代化架构构建的AI服务平台。项目采用分层架构设计，**默认启动gRPC服务**，为外部客户端提供AI对话服务。支持CLI管理和gRPC接口两种使用方式。
 
+**新增功能**: 集成 **Model Context Protocol (MCP)** 支持，大模型可以在对话过程中动态调用外部工具和服务。
+
 ## 快速启动
 
 ### 主要启动方式
@@ -62,15 +64,17 @@ lumi-pilot/
 ├── examples/                       # 客户端调用示例
 │   ├── python_client.py           # Python客户端示例
 │   └── other_languages.md         # 其他语言调用指南
+├── mcp_servers.example.json        # MCP服务器配置示例
 ├── core/                          # 核心应用层
 │   ├── application.py             # 应用和服务注册表
 │   ├── protocols.py               # 服务接口协议
 │   └── models.py                  # 统一数据模型
 ├── services/                      # 业务服务层
-│   ├── chat/                      # AI对话服务
+│   ├── chat/                      # AI对话服务（支持MCP工具调用）
 │   └── fault_detection/           # AI故障检测服务
 ├── infrastructure/               # 基础设施层
-│   ├── llm/                      # LLM客户端
+│   ├── llm/                      # LLM客户端（集成MCP支持）
+│   ├── mcp/                      # MCP客户端和管理器 ⭐ 新增
 │   ├── config/                   # 配置管理
 │   └── logging/                  # 日志系统
 └── interfaces/                   # 接口层
@@ -95,14 +99,23 @@ lumi-pilot/
     ┌───────┴───────┐
 ┌─────────┐  ┌──────────────┐
 │ Chat    │  │ Fault        │      <- 业务服务层  
-│ Service │  │ Detection    │
+│ Service │  │ Detection    │        (Chat集成MCP)
 └─────────┘  └──────────────┘
             │
 ┌─────────────────────────────────┐
 │   Infrastructure Layer          │  <- 基础设施层
 │   - LLM Client (DeepSeek-V3)   │
+│   - MCP Client & Manager ⭐     │  <- 新增MCP支持
 │   - Structured Logging         │
 │   - Configuration Management   │
+└─────────────────────────────────┘
+            │
+┌─────────────────────────────────┐
+│       MCP Servers               │  <- 外部MCP服务器
+│   - Filesystem Tools            │
+│   - SQLite Database             │ 
+│   - Memory Management           │
+│   - Custom Tools...             │
 └─────────────────────────────────┘
 ```
 
@@ -179,6 +192,59 @@ with grpc.insecure_channel('localhost:50051') as channel:
 2025-09-16T07:36:52.338758Z [info] [grpc_chat] 返回AI回复: 你好！我是Lumi Pilot AI助手...
 ```
 
+## MCP (Model Context Protocol) 支持
+
+### 概述
+MCP 允许大模型在对话过程中动态调用外部工具和服务，极大扩展AI助手的能力边界。
+
+### 工作流程
+```
+用户消息 → gRPC → ChatService → LLMClient + MCPManager → 
+大模型推理 → 选择调用工具 → MCP服务器执行 → 结果返回 → 继续推理 → 最终回复
+```
+
+### MCP 配置方式
+
+#### 1. 配置文件方式
+创建 `mcp_servers.json`：
+```json
+{
+  "mcp_servers": [
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {"NODE_ENV": "production"}
+    }
+  ]
+}
+```
+
+#### 2. 环境变量方式
+```bash
+# 文件系统服务器
+LUMI_MCP_SERVER_FILESYSTEM_COMMAND=npx
+LUMI_MCP_SERVER_FILESYSTEM_ARGS="-y @modelcontextprotocol/server-filesystem /tmp"
+LUMI_MCP_SERVER_FILESYSTEM_ENV='{"NODE_ENV":"production"}'
+
+# SQLite服务器  
+LUMI_MCP_SERVER_SQLITE_COMMAND=npx
+LUMI_MCP_SERVER_SQLITE_ARGS="-y @modelcontextprotocol/server-sqlite --db-path /tmp/test.db"
+```
+
+### MCP 服务器示例
+- **Filesystem**: 文件系统操作（读写文件、目录管理）
+- **SQLite**: 数据库查询和操作
+- **Memory**: 临时内存存储
+- **Web**: 网页获取和处理
+- **Custom**: 自定义工具服务器
+
+### MCP 特性
+- **自动发现**: 启动时自动连接配置的MCP服务器并发现可用工具
+- **工具调用**: LLM根据需要自动选择和调用相应工具
+- **多轮对话**: 支持工具调用结果作为上下文继续对话
+- **错误处理**: 完善的连接管理和错误恢复机制
+
 ## 环境变量
 
 ### 必需变量
@@ -191,6 +257,11 @@ with grpc.insecure_channel('localhost:50051') as channel:
 - `LUMI_MAX_TOKENS`: 最大token数（默认: 1000）
 - `LUMI_LOG_LEVEL`: 日志级别（默认: INFO）
 - `LUMI_DEBUG`: 启用调试模式
+
+### MCP相关变量
+- `LUMI_MCP_SERVER_<name>_COMMAND`: MCP服务器命令
+- `LUMI_MCP_SERVER_<name>_ARGS`: 命令参数（空格分隔）  
+- `LUMI_MCP_SERVER_<name>_ENV`: 环境变量（JSON格式）
 
 ## 响应格式
 
