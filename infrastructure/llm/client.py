@@ -130,13 +130,19 @@ class LLMClient:
                 "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
                 "temperature": kwargs.get("temperature", self.settings.temperature),
             }
+            
+            # 添加其他OpenAI API参数（如response_format, top_p, stop等）
+            additional_params = {k: v for k, v in kwargs.items() 
+                               if k not in ["model", "max_tokens", "temperature"] and v is not None}
+            call_params.update(additional_params)
             current_model = call_params["model"]
             
             # 调用API
             logger.info("llm_client", f"调用API: {current_model}")
             
-            # 打印发送给LLM的原始数据
-            self._debug_print("发送给LLM的消息", [msg.content if hasattr(msg, 'content') else str(msg) for msg in messages])
+            # 打印发送给LLM的标准OpenAI格式消息
+            debug_messages = self._client._convert_messages(messages)
+            self._debug_print("发送给LLM的消息", debug_messages)
             if tools:
                 self._debug_print("发送给LLM的工具定义", tools)
             
@@ -203,9 +209,9 @@ class LLMClient:
                 
                 # 让LLM基于工具结果生成最终回复
                 logger.info("llm_client", "基于工具结果生成最终回复")
-                self._debug_print("发送给LLM的完整对话（包含工具结果）", [
-                    msg.content for msg in conversation
-                ])
+                # 将消息转换为OpenAI API格式进行调试显示
+                debug_messages = self._client._convert_messages(conversation)
+                self._debug_print("发送给LLM的完整对话（包含工具结果）", debug_messages)
                 response = await self._client.chat_completion(
                     messages=conversation,
                     **call_params
@@ -245,12 +251,8 @@ class LLMClient:
                     "tool_call_ids": [tc["id"] for tc in response.tool_calls] if hasattr(response, 'tool_calls') and response.tool_calls else [],
                     "llm_latency": duration,
                     "tool_latency": (tool_end_time - tool_start_time) if tool_start_time and tool_end_time else 0,
-                    # 生成参数记录
-                    "generation_params": {
-                        "model": call_params["model"],
-                        "temperature": call_params["temperature"],
-                        "max_tokens": call_params["max_tokens"]
-                    },
+                    # 生成参数记录 
+                    "generation_params": call_params,
                     **kwargs
                 }
             )
