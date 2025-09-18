@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from infrastructure.config.settings import get_settings
 from infrastructure.logging.logger import get_logger
 from infrastructure.mcp.client import MCPManager
-from .openai_client import OpenAIClient, create_system_message, create_user_message
+from .openai_client import OpenAIClient, create_system_message, create_user_message, create_assistant_message, create_tool_message
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -163,12 +163,9 @@ class LLMClient:
                 # 构建包含工具结果的新对话
                 conversation = messages.copy()
                 # 添加助手的工具调用响应
-                assistant_msg = {
-                    "role": "assistant", 
-                    "content": response.content or ""
-                }
+                tool_calls_formatted = None
                 if response.tool_calls:
-                    assistant_msg["tool_calls"] = [
+                    tool_calls_formatted = [
                         {
                             "id": tc["id"],
                             "type": "function",
@@ -179,21 +176,25 @@ class LLMClient:
                         }
                         for tc in response.tool_calls
                     ]
+                assistant_msg = create_assistant_message(
+                    content=response.content or "",
+                    tool_calls=tool_calls_formatted
+                )
                 conversation.append(assistant_msg)
                 
                 # 添加工具执行结果
                 for i, result in enumerate(tool_results):
                     tool_call = response.tool_calls[i]
-                    conversation.append({
-                        "role": "tool",
-                        "content": str(result),
-                        "tool_call_id": tool_call["id"]
-                    })
+                    tool_msg = create_tool_message(
+                        content=str(result),
+                        tool_call_id=tool_call["id"]
+                    )
+                    conversation.append(tool_msg)
                 
                 # 让LLM基于工具结果生成最终回复
                 logger.info("llm_client", "基于工具结果生成最终回复")
                 self._debug_print("发送给LLM的完整对话（包含工具结果）", [
-                    msg.get("content", "") if isinstance(msg, dict) else msg.content for msg in conversation
+                    msg.content for msg in conversation
                 ])
                 response = await self._client.chat_completion(
                     messages=conversation,
