@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 from core.models import ServiceRequest, ServiceResponse, HealthStatus
 from infrastructure.llm.client import LLMClient
 from infrastructure.mcp.client import MCPManager
-from utils.personality import get_personality_manager
+# 移除了personality导入，现在直接使用配置文件
 from .models import ChatRequest, ChatStreamRequest
 
 
@@ -28,12 +28,12 @@ class ChatService:
         self.llm_client = llm_client
         self.mcp_manager = mcp_manager
         self.service_name = "chat"
-        self.character_file = character_file
-        self.personality_manager = get_personality_manager(character_file)
         
-        # 确定系统提示词
-        if self.character_file:
-            self.system_prompt = self.personality_manager.get_system_prompt()
+        # 从配置文件获取人物设定
+        from infrastructure.config import get_settings
+        settings = get_settings()
+        if hasattr(settings, 'personality_system_prompt'):
+            self.system_prompt = settings.personality_system_prompt
         else:
             self.system_prompt = """你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。
 请用中文回复，保持回答简洁明了，准确有用。"""
@@ -157,8 +157,10 @@ class ChatService:
             llm_healthy = await self.llm_client.validate_connection()
             model_info = self.llm_client.get_model_info()
             
-            # 检查角色管理器状态
-            character_name = self.personality_manager.get_character_name()
+            # 检查人物配置状态
+            from infrastructure.config import get_settings
+            settings = get_settings()
+            character_name = getattr(settings, 'personality_name', 'Lumi Pilot AI助手')
             
             # 检查MCP状态
             mcp_info = {}

@@ -51,6 +51,10 @@ class LumiPilotSettings(BaseModel):
     grpc_host: str = Field(default="localhost", description="gRPC服务器主机")
     grpc_port: int = Field(default=50051, description="gRPC服务器端口")
     grpc_max_workers: int = Field(default=10, description="gRPC最大工作线程数")
+    
+    # 人物配置
+    personality_name: str = Field(default="Lumi Pilot AI助手", description="人物名称")
+    personality_system_prompt: str = Field(default="你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。请用中文回复，保持回答简洁明了，准确有用。", description="系统提示词")
 
 
 def load_toml_config() -> Dict[str, Any]:
@@ -130,6 +134,21 @@ def load_toml_config() -> Dict[str, Any]:
             'grpc_host': grpc.get('host', 'localhost'),
             'grpc_port': grpc.get('port', 50051),
             'grpc_max_workers': grpc.get('max_workers', 10),
+        })
+    
+    # 人物配置
+    if 'personality' in config:
+        personality = config['personality']
+        name = personality.get('name', 'Lumi Pilot AI助手')
+        system_prompt = personality.get('system_prompt', '你是Lumi Pilot AI助手，一个智能、友好、专业的对话AI。请用中文回复，保持回答简洁明了，准确有用。')
+        
+        # 支持{name}变量替换
+        if '{name}' in system_prompt:
+            system_prompt = system_prompt.format(name=name)
+        
+        flat_config.update({
+            'personality_name': name,
+            'personality_system_prompt': system_prompt,
         })
     
     return flat_config
