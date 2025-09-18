@@ -4,6 +4,7 @@
 """
 import time
 import json
+import uuid
 from typing import Dict, Any, Optional, List
 
 from pydantic import BaseModel
@@ -97,6 +98,9 @@ class LLMClient:
         
         start_time = time.time()
         current_model = self.settings.openai_model
+        request_id = str(uuid.uuid4())[:8]  # 生成8位request_id
+        tool_start_time = None
+        tool_end_time = None
         
         try:
             # 准备消息列表
@@ -154,11 +158,17 @@ class LLMClient:
             if tools and hasattr(response, 'tool_calls') and response.tool_calls:
                 logger.info("llm_client", f"LLM请求调用 {len(response.tool_calls)} 个工具")
                 
+                # 记录工具调用开始时间
+                tool_start_time = time.time()
+                
                 # 处理工具调用
                 tool_results = []
                 for tool_call in response.tool_calls:
                     result = await self._execute_mcp_tool(tool_call)
                     tool_results.append(result)
+                
+                # 记录工具调用结束时间
+                tool_end_time = time.time()
                 
                 # 构建包含工具结果的新对话
                 conversation = messages.copy()
@@ -177,7 +187,7 @@ class LLMClient:
                         for tc in response.tool_calls
                     ]
                 assistant_msg = create_assistant_message(
-                    content=response.content or "",
+                    content=response.content if response.content and response.content.strip() else "正在调用工具...",
                     tool_calls=tool_calls_formatted
                 )
                 conversation.append(assistant_msg)
@@ -230,6 +240,17 @@ class LLMClient:
                     "timestamp": time.time(),
                     "system_prompt": system_prompt,
                     "tools_used": len(response.tool_calls) if hasattr(response, 'tool_calls') and response.tool_calls else 0,
+                    # 可观测性字段
+                    "request_id": request_id,
+                    "tool_call_ids": [tc["id"] for tc in response.tool_calls] if hasattr(response, 'tool_calls') and response.tool_calls else [],
+                    "llm_latency": duration,
+                    "tool_latency": (tool_end_time - tool_start_time) if tool_start_time and tool_end_time else 0,
+                    # 生成参数记录
+                    "generation_params": {
+                        "model": call_params["model"],
+                        "temperature": call_params["temperature"],
+                        "max_tokens": call_params["max_tokens"]
+                    },
                     **kwargs
                 }
             )
@@ -248,6 +269,9 @@ class LLMClient:
                 metadata={
                     "timestamp": time.time(),
                     "duration": duration,
+                    "request_id": request_id,
+                    "llm_latency": duration,
+                    "tool_latency": 0,
                 }
             )
     
@@ -290,12 +314,16 @@ class LLMClient:
                 
                 return str(result)
             else:
-                return "错误: MCP管理器未初始化"
+                return "抱歉，工具服务暂时不可用"
                 
         except Exception as e:
-            error_msg = f"MCP工具调用失败: {str(e)}"
-            logger.error("llm_client", error_msg)
-            return error_msg
+            logger.error("llm_client", f"工具调用失败: {tool_name} - {str(e)}")
+            # 友好降级处理
+            friendly_messages = {
+                "printer_status": "抱歉，打印机状态查询功能暂时不可用，请稍后重试或手动检查设备状态",
+                "printer_print": "抱歉，打印功能暂时不可用，请稍后重试或联系技术支持"
+            }
+            return friendly_messages.get(tool_name, f"抱歉，{tool_name}功能暂时不可用，请稍后重试")
     
     async def validate_connection(self) -> bool:
         """

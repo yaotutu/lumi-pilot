@@ -16,8 +16,13 @@ def register_printer_tools(mcp: FastMCP) -> int:
     registered_count = 0
     
     @mcp.tool
-    async def printer_status() -> dict:
-        """获取打印机状态 - 通过API调用真实的打印机状态接口"""
+    async def printer_status(include_temperature: bool = True) -> dict:
+        """
+        获取打印机状态 - 通过API调用真实的打印机状态接口
+        
+        Args:
+            include_temperature: 是否包含温度信息，默认true
+        """
         handler = get_printer_handler()
         return await handler.get_printer_status()
     registered_count = registered_count + 1
