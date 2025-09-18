@@ -143,31 +143,14 @@ def get_printer_handler() -> PrinterHandlers:
 # 同步封装函数（用于MCP工具调用）
 def get_printer_status() -> dict:
     """获取打印机状态（同步版本）"""
-    try:
-        # 检查是否在事件循环中
-        asyncio.get_running_loop()
-        # 如果在事件循环中，返回模拟数据
-        logger.warning("printer_handlers", "在事件循环中调用，返回模拟数据")
-        return {
-            "status": "离线", 
-            "message": "需要异步架构支持",
-            "note": "实际环境中将调用真实API"
-        }
-    except RuntimeError:
-        # 没有运行的事件循环，可以使用 asyncio.run
-        handler = get_printer_handler()
-        return asyncio.run(handler.get_printer_status())
+    handler = get_printer_handler()
+    return asyncio.run(handler.get_printer_status())
 
 
 def print_document(content: str, printer_name: str = "default") -> str:
     """打印文档（同步版本）"""
-    try:
-        asyncio.get_running_loop()
-        logger.warning("printer_handlers", "在事件循环中调用打印，返回模拟结果")
-        return f"模拟打印: '{content}' 发送到 {printer_name} (需要异步架构支持)"
-    except RuntimeError:
-        handler = get_printer_handler()
-        return asyncio.run(handler.print_document(content, printer_name))
+    handler = get_printer_handler()
+    return asyncio.run(handler.print_document(content, printer_name))
 
 
 def get_print_queue() -> dict:
