@@ -5,6 +5,7 @@
 import time
 import json
 import uuid
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 
 from pydantic import BaseModel
@@ -40,6 +41,11 @@ class LLMClient:
         self.mcp_manager = mcp_manager
         self.debug = debug
         
+        # 简单会话管理
+        self.conversation_history: List[Dict[str, Any]] = []
+        self.session_start_time = datetime.now()
+        self.total_tokens_used = 0
+        
         # 初始化客户端
         self._init_client()
     
@@ -70,6 +76,50 @@ class LLMClient:
             logger.error("llm_client", f"初始化失败: {str(e)}")
             raise
     
+    def _should_reset_session(self) -> bool:
+        """检查是否需要重置会话"""
+        # 检查时间超时
+        time_elapsed = datetime.now() - self.session_start_time
+        if time_elapsed > timedelta(minutes=self.settings.session_timeout_minutes):
+            logger.info("llm_client", f"会话超时，已运行{time_elapsed.total_seconds()/60:.1f}分钟")
+            return True
+        
+        # 检查消息数量（只计算用户-助手对话轮数，每轮=2条消息）
+        conversation_rounds = len(self.conversation_history) // 2
+        if conversation_rounds >= self.settings.session_max_messages:
+            logger.info("llm_client", f"会话轮数达到上限：{conversation_rounds}轮({len(self.conversation_history)}条消息)")
+            return True
+        
+        # 检查token数量
+        if self.total_tokens_used >= self.settings.session_max_tokens:
+            logger.info("llm_client", f"会话token数达到上限：{self.total_tokens_used}")
+            return True
+        
+        return False
+    
+    def _reset_session(self) -> None:
+        """重置会话"""
+        logger.info("llm_client", "重置会话 - 清空历史记录")
+        self.conversation_history.clear()
+        self.session_start_time = datetime.now()
+        self.total_tokens_used = 0
+    
+    def _update_conversation_history(self, user_message: Any, response: Any, response_content: str) -> None:
+        """更新对话历史"""
+        # 添加用户消息到历史
+        self.conversation_history.append(user_message)
+        
+        # 添加助手回复到历史
+        assistant_message = create_assistant_message(response_content)
+        self.conversation_history.append(assistant_message)
+        
+        # 估算token使用量（简单估算：1token约4个字符）
+        input_tokens = len(user_message.content) // 4
+        output_tokens = len(response_content) // 4
+        self.total_tokens_used = self.total_tokens_used + input_tokens + output_tokens
+        
+        logger.debug("llm_client", f"会话统计: 消息数={len(self.conversation_history)}, 总tokens≈{self.total_tokens_used}")
+    
     async def chat(
         self, 
         message: str, 
@@ -96,6 +146,12 @@ class LLMClient:
                 error="LLM客户端未初始化"
             )
         
+        # 检查是否需要重置会话（在添加新消息前检查）
+        conversation_rounds = len(self.conversation_history) // 2
+        if conversation_rounds >= self.settings.session_max_messages:
+            logger.info("llm_client", f"会话轮数达到上限：{conversation_rounds}轮，重置会话")
+            self._reset_session()
+        
         start_time = time.time()
         current_model = self.settings.openai_model
         request_id = str(uuid.uuid4())[:8]  # 生成8位request_id
@@ -103,15 +159,19 @@ class LLMClient:
         tool_end_time = None
         
         try:
-            # 准备消息列表
+            # 准备消息列表 - 包含历史会话
             messages = []
             
             # 添加系统消息（如果提供）
             if system_prompt:
                 messages.append(create_system_message(system_prompt))
             
-            # 添加用户消息
-            messages.append(create_user_message(message))
+            # 添加历史对话
+            messages.extend(self.conversation_history)
+            
+            # 添加当前用户消息
+            user_message = create_user_message(message)
+            messages.append(user_message)
             
             # 获取MCP工具定义
             tools = []
@@ -231,6 +291,9 @@ class LLMClient:
             
             # 记录API调用日志
             logger.info("llm_client", f"API调用成功: {current_model}, 耗时{duration:.2f}s")
+            
+            # 更新会话历史和token计数
+            self._update_conversation_history(user_message, response, response_content)
             
             # 构建成功响应
             return ChatResponse(

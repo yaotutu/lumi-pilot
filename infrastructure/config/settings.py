@@ -33,6 +33,11 @@ class LumiPilotSettings(BaseModel):
     # 应用配置
     app_name: str = Field(default="Lumi Pilot", description="应用名称")
     
+    # 会话管理配置
+    session_timeout_minutes: int = Field(default=30, description="会话超时时间（分钟）")
+    session_max_messages: int = Field(default=20, description="单次会话最大消息数")
+    session_max_tokens: int = Field(default=8000, description="单次会话最大token数")
+    
     # 打印机配置
     printer_base_url: str = Field(..., description="打印机API基础URL")
     printer_timeout: int = Field(default=10, description="打印机请求超时时间")
@@ -80,6 +85,9 @@ def load_toml_config() -> Dict[str, Any]:
         flat_config.update({
             'debug': system.get('debug', False),
             'log_level': system.get('log_level', 'INFO'),
+            'session_timeout_minutes': system.get('session_timeout_minutes', 30),
+            'session_max_messages': system.get('session_max_messages', 20),
+            'session_max_tokens': system.get('session_max_tokens', 8000),
         })
     
     # 日志配置
