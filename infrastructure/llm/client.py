@@ -1,18 +1,17 @@
 """
 简化的大语言模型客户端
-使用标准MCP协议，通过LangChain调用OpenAI兼容的API
+使用标准MCP协议，通过原生HTTP客户端调用OpenAI兼容的API
 """
 import time
 import json
 from typing import Dict, Any, Optional, List
 
-from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from infrastructure.config.settings import get_settings
 from infrastructure.logging.logger import get_logger
 from infrastructure.mcp.client import MCPManager
+from .openai_client import OpenAIClient, create_system_message, create_user_message
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -30,13 +29,13 @@ class ChatResponse(BaseModel):
 class LLMClient:
     """
     大语言模型客户端
-    负责与LangChain和OpenAI兼容的API进行交互，支持MCP工具调用
+    负责与OpenAI兼容的API进行交互，支持MCP工具调用
     """
     
     def __init__(self, mcp_manager: Optional[MCPManager] = None, debug: bool = True):
         """初始化LLM客户端"""
         self.settings = get_settings()
-        self._client: Optional[ChatOpenAI] = None
+        self._client: Optional[OpenAIClient] = None
         self.mcp_manager = mcp_manager
         self.debug = debug
         
@@ -56,12 +55,12 @@ class LLMClient:
             print(f"{'='*60}")
     
     def _init_client(self) -> None:
-        """初始化LangChain ChatOpenAI客户端"""
+        """初始化OpenAI HTTP客户端"""
         try:
-            self._client = ChatOpenAI(
+            self._client = OpenAIClient(
+                api_key=self.settings.openai_api_key,
+                base_url=self.settings.openai_base_url,
                 model=self.settings.openai_model,
-                openai_api_key=self.settings.openai_api_key,
-                openai_api_base=self.settings.openai_base_url,
                 max_tokens=self.settings.max_tokens,
                 temperature=self.settings.temperature,
             )
@@ -105,10 +104,10 @@ class LLMClient:
             
             # 添加系统消息（如果提供）
             if system_prompt:
-                messages.append(SystemMessage(content=system_prompt))
+                messages.append(create_system_message(system_prompt))
             
             # 添加用户消息
-            messages.append(HumanMessage(content=message))
+            messages.append(create_user_message(message))
             
             # 获取MCP工具定义
             tools = []
@@ -121,18 +120,13 @@ class LLMClient:
                         tool_desc = tool["function"]["description"]
                         logger.info("llm_client", f"可用工具: {tool_name} - {tool_desc}")
             
-            # 临时覆盖参数（如果提供）
-            temp_client = self._client
-            if kwargs:
-                client_params = {
-                    "model": kwargs.get("model", self.settings.openai_model),
-                    "openai_api_key": self.settings.openai_api_key,
-                    "openai_api_base": self.settings.openai_base_url,
-                    "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
-                    "temperature": kwargs.get("temperature", self.settings.temperature),
-                }
-                temp_client = ChatOpenAI(**client_params)
-                current_model = client_params["model"]
+            # 准备调用参数
+            call_params = {
+                "model": kwargs.get("model", self.settings.openai_model),
+                "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
+                "temperature": kwargs.get("temperature", self.settings.temperature),
+            }
+            current_model = call_params["model"]
             
             # 调用API
             logger.info("llm_client", f"调用API: {current_model}")
@@ -143,10 +137,11 @@ class LLMClient:
                 self._debug_print("发送给LLM的工具定义", tools)
             
             # 第一次调用LLM
-            if tools:
-                response = temp_client.invoke(messages, tools=tools)
-            else:
-                response = temp_client.invoke(messages)
+            response = await self._client.chat_completion(
+                messages=messages,
+                tools=tools if tools else None,
+                **call_params
+            )
             
             # 打印从LLM接收的原始数据
             self._debug_print("从LLM接收的响应", {
@@ -167,18 +162,43 @@ class LLMClient:
                 
                 # 构建包含工具结果的新对话
                 conversation = messages.copy()
-                conversation.append(response)
+                # 添加助手的工具调用响应
+                assistant_msg = {
+                    "role": "assistant", 
+                    "content": response.content or ""
+                }
+                if response.tool_calls:
+                    assistant_msg["tool_calls"] = [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": json.dumps(tc["args"])
+                            }
+                        }
+                        for tc in response.tool_calls
+                    ]
+                conversation.append(assistant_msg)
                 
-                # 添加工具结果
+                # 添加工具执行结果
                 for i, result in enumerate(tool_results):
-                    tool_name = response.tool_calls[i].get('name', 'unknown')
-                    tool_result_msg = f"工具 {tool_name} 执行结果: {result}"
-                    conversation.append(HumanMessage(content=tool_result_msg))
+                    tool_call = response.tool_calls[i]
+                    conversation.append({
+                        "role": "tool",
+                        "content": str(result),
+                        "tool_call_id": tool_call["id"]
+                    })
                 
                 # 让LLM基于工具结果生成最终回复
                 logger.info("llm_client", "基于工具结果生成最终回复")
-                self._debug_print("发送给LLM的完整对话（包含工具结果）", [msg.content if hasattr(msg, 'content') else str(msg) for msg in conversation])
-                response = temp_client.invoke(conversation)
+                self._debug_print("发送给LLM的完整对话（包含工具结果）", [
+                    msg.get("content", "") if isinstance(msg, dict) else msg.content for msg in conversation
+                ])
+                response = await self._client.chat_completion(
+                    messages=conversation,
+                    **call_params
+                )
                 
                 # 打印最终响应
                 self._debug_print("从LLM接收的最终响应", {
@@ -241,7 +261,7 @@ class LLMClient:
             工具执行结果
         """
         try:
-            # 从LangChain工具调用中提取信息
+            # 从工具调用中提取信息
             tool_name = tool_call.get('name', '')
             tool_args = tool_call.get('args', {})
             
