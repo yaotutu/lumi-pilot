@@ -2,7 +2,6 @@
 MCP服务器响应模型定义
 """
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -13,8 +12,8 @@ class ServerInfo:
     type: str
     status: str
     tools_count: int
-    description: Optional[str] = None
-    
+    description: str | None = None
+
     def to_dict(self) -> dict:
         """转换为字典格式"""
         result = {
@@ -29,13 +28,13 @@ class ServerInfo:
         return result
 
 
-@dataclass 
+@dataclass
 class GreetingResponse:
     """问候响应模型"""
     message: str
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
     source: str = "Lumi Pilot Internal Server"
-    
+
     def to_string(self) -> str:
         """转换为字符串格式"""
         return self.message

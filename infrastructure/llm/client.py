@@ -2,18 +2,25 @@
 简化的大语言模型客户端
 使用标准MCP协议，通过原生HTTP客户端调用OpenAI兼容的API
 """
-import time
 import json
+import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 from pydantic import BaseModel
 
 from infrastructure.config.settings import get_settings
 from infrastructure.logging.logger import get_logger
 from infrastructure.mcp.client import MCPManager
-from .openai_client import OpenAIClient, create_system_message, create_user_message, create_assistant_message, create_tool_message
+
+from .openai_client import (
+    OpenAIClient,
+    create_assistant_message,
+    create_system_message,
+    create_tool_message,
+    create_user_message,
+)
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -23,9 +30,9 @@ class ChatResponse(BaseModel):
     """聊天响应数据模型"""
     success: bool
     message: str
-    data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = {}
+    data: dict[str, Any] | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = {}
 
 
 class LLMClient:
@@ -33,22 +40,22 @@ class LLMClient:
     大语言模型客户端
     负责与OpenAI兼容的API进行交互，支持MCP工具调用
     """
-    
-    def __init__(self, mcp_manager: Optional[MCPManager] = None, debug: bool = True):
+
+    def __init__(self, mcp_manager: MCPManager | None = None, debug: bool = True):
         """初始化LLM客户端"""
         self.settings = get_settings()
-        self._client: Optional[OpenAIClient] = None
+        self._client: OpenAIClient | None = None
         self.mcp_manager = mcp_manager
         self.debug = debug
-        
+
         # 简单会话管理
-        self.conversation_history: List[Dict[str, Any]] = []
+        self.conversation_history: list[dict[str, Any]] = []
         self.session_start_time = datetime.now()
         self.total_tokens_used = 0
-        
+
         # 初始化客户端
         self._init_client()
-    
+
     def _debug_print(self, title: str, data: any):
         """打印调试信息"""
         if self.debug:
@@ -60,82 +67,93 @@ class LLMClient:
             else:
                 print(f"{data}")
             print(f"{'='*60}")
-    
+
     def _init_client(self) -> None:
         """初始化OpenAI HTTP客户端"""
         try:
             self._client = OpenAIClient(
-                api_key=self.settings.openai_api_key,
-                base_url=self.settings.openai_base_url,
-                model=self.settings.openai_model,
-                max_tokens=self.settings.max_tokens,
-                temperature=self.settings.temperature,
+                api_key=self.settings.llm.api_key,
+                base_url=self.settings.llm.base_url,
+                model=self.settings.llm.model,
+                max_tokens=self.settings.llm.max_tokens,
+                temperature=self.settings.llm.temperature,
             )
-            logger.info("llm_client", f"初始化成功: {self.settings.openai_model}")
+            logger.info("llm_client", f"初始化成功: {self.settings.llm.model}")
         except Exception as e:
             logger.error("llm_client", f"初始化失败: {str(e)}")
             raise
-    
+
     def _should_reset_session(self) -> bool:
         """检查是否需要重置会话"""
         # 检查时间超时
         time_elapsed = datetime.now() - self.session_start_time
-        if time_elapsed > timedelta(minutes=self.settings.session_timeout_minutes):
-            logger.info("llm_client", f"会话超时，已运行{time_elapsed.total_seconds()/60:.1f}分钟")
+        timeout_minutes = self.settings.system.session_timeout_minutes
+        if time_elapsed > timedelta(minutes=timeout_minutes):
+            elapsed_minutes = time_elapsed.total_seconds() / 60
+            logger.info("llm_client", f"会话超时，已运行{elapsed_minutes:.1f}分钟")
             return True
-        
+
         # 检查消息数量（只计算用户-助手对话轮数，每轮=2条消息）
         conversation_rounds = len(self.conversation_history) // 2
-        if conversation_rounds >= self.settings.session_max_messages:
-            logger.info("llm_client", f"会话轮数达到上限：{conversation_rounds}轮({len(self.conversation_history)}条消息)")
+        max_messages = self.settings.system.session_max_messages
+        if conversation_rounds >= max_messages:
+            history_len = len(self.conversation_history)
+            logger.info("llm_client", f"会话轮数达到上限：{conversation_rounds}轮({history_len}条消息)")
             return True
-        
+
         # 检查token数量
-        if self.total_tokens_used >= self.settings.session_max_tokens:
+        max_tokens = self.settings.system.session_max_tokens
+        if self.total_tokens_used >= max_tokens:
             logger.info("llm_client", f"会话token数达到上限：{self.total_tokens_used}")
             return True
-        
+
         return False
-    
+
     def _reset_session(self) -> None:
         """重置会话"""
         logger.info("llm_client", "重置会话 - 清空历史记录")
         self.conversation_history.clear()
         self.session_start_time = datetime.now()
         self.total_tokens_used = 0
-    
-    def _update_conversation_history(self, user_message: Any, response: Any, response_content: str) -> None:
+
+    def _update_conversation_history(
+        self, user_message: Any, response: Any, response_content: str
+    ) -> None:
         """更新对话历史"""
         # 添加用户消息到历史
         self.conversation_history.append(user_message)
-        
+
         # 添加助手回复到历史
         assistant_message = create_assistant_message(response_content)
         self.conversation_history.append(assistant_message)
-        
+
         # 估算token使用量（简单估算：1token约4个字符）
         input_tokens = len(user_message.content) // 4
         output_tokens = len(response_content) // 4
         self.total_tokens_used = self.total_tokens_used + input_tokens + output_tokens
-        
-        logger.debug("llm_client", f"会话统计: 消息数={len(self.conversation_history)}, 总tokens≈{self.total_tokens_used}")
-    
+
+        msg_count = len(self.conversation_history)
+        logger.debug(
+            "llm_client",
+            f"会话统计: 消息数={msg_count}, 总tokens≈{self.total_tokens_used}"
+        )
+
     async def chat(
-        self, 
-        message: str, 
-        system_prompt: Optional[str] = None,
+        self,
+        message: str,
+        system_prompt: str | None = None,
         enable_tools: bool = True,
         **kwargs: Any
     ) -> ChatResponse:
         """
         发送聊天消息并获取响应
-        
+
         Args:
             message: 用户输入的消息
             system_prompt: 可选的系统提示词
             enable_tools: 是否启用MCP工具调用
             **kwargs: 其他参数（如model, temperature, max_tokens等）
-            
+
         Returns:
             ChatResponse: 包含响应结果的对象
         """
@@ -145,34 +163,38 @@ class LLMClient:
                 message="",
                 error="LLM客户端未初始化"
             )
-        
+
         # 检查是否需要重置会话（在添加新消息前检查）
         conversation_rounds = len(self.conversation_history) // 2
-        if conversation_rounds >= self.settings.session_max_messages:
-            logger.info("llm_client", f"会话轮数达到上限：{conversation_rounds}轮，重置会话")
+        max_messages = self.settings.system.session_max_messages
+        if conversation_rounds >= max_messages:
+            logger.info(
+                "llm_client",
+                f"会话轮数达到上限：{conversation_rounds}轮，重置会话"
+            )
             self._reset_session()
-        
+
         start_time = time.time()
-        current_model = self.settings.openai_model
+        current_model = self.settings.llm.model
         request_id = str(uuid.uuid4())[:8]  # 生成8位request_id
         tool_start_time = None
         tool_end_time = None
-        
+
         try:
             # 准备消息列表 - 包含历史会话
             messages = []
-            
+
             # 添加系统消息（如果提供）
             if system_prompt:
                 messages.append(create_system_message(system_prompt))
-            
+
             # 添加历史对话
             messages.extend(self.conversation_history)
-            
+
             # 添加当前用户消息
             user_message = create_user_message(message)
             messages.append(user_message)
-            
+
             # 获取MCP工具定义
             tools = []
             if enable_tools and self.mcp_manager:
@@ -182,60 +204,68 @@ class LLMClient:
                     for tool in tools:
                         tool_name = tool["function"]["name"]
                         tool_desc = tool["function"]["description"]
-                        logger.info("llm_client", f"可用工具: {tool_name} - {tool_desc}")
-            
+                        logger.info(
+                            "llm_client", f"可用工具: {tool_name} - {tool_desc}"
+                        )
+
             # 准备调用参数
             call_params = {
-                "model": kwargs.get("model", self.settings.openai_model),
-                "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
-                "temperature": kwargs.get("temperature", self.settings.temperature),
+                "model": kwargs.get("model", self.settings.llm.model),
+                "max_tokens": kwargs.get("max_tokens", self.settings.llm.max_tokens),
+                "temperature": kwargs.get("temperature", self.settings.llm.temperature),
             }
-            
+
             # 添加其他OpenAI API参数（如response_format, top_p, stop等）
-            additional_params = {k: v for k, v in kwargs.items() 
-                               if k not in ["model", "max_tokens", "temperature"] and v is not None}
+            excluded_keys = ["model", "max_tokens", "temperature"]
+            additional_params = {
+                k: v for k, v in kwargs.items()
+                if k not in excluded_keys and v is not None
+            }
             call_params.update(additional_params)
             current_model = call_params["model"]
-            
+
             # 调用API
             logger.info("llm_client", f"调用API: {current_model}")
-            
+
             # 打印发送给LLM的标准OpenAI格式消息
             debug_messages = self._client._convert_messages(messages)
             self._debug_print("发送给LLM的消息", debug_messages)
             if tools:
                 self._debug_print("发送给LLM的工具定义", tools)
-            
+
             # 第一次调用LLM
             response = await self._client.chat_completion(
                 messages=messages,
                 tools=tools if tools else None,
                 **call_params
             )
-            
+
             # 打印从LLM接收的原始数据
             self._debug_print("从LLM接收的响应", {
-                "content": response.content if hasattr(response, 'content') else str(response),
+                "content": (
+                    response.content if hasattr(response, 'content')
+                    else str(response)
+                ),
                 "tool_calls": response.tool_calls if hasattr(response, 'tool_calls') else None,
                 "response_type": type(response).__name__
             })
-            
+
             # 检查是否有工具调用请求
             if tools and hasattr(response, 'tool_calls') and response.tool_calls:
                 logger.info("llm_client", f"LLM请求调用 {len(response.tool_calls)} 个工具")
-                
+
                 # 记录工具调用开始时间
                 tool_start_time = time.time()
-                
+
                 # 处理工具调用
                 tool_results = []
                 for tool_call in response.tool_calls:
                     result = await self._execute_mcp_tool(tool_call)
                     tool_results.append(result)
-                
+
                 # 记录工具调用结束时间
                 tool_end_time = time.time()
-                
+
                 # 构建包含工具结果的新对话
                 conversation = messages.copy()
                 # 添加助手的工具调用响应
@@ -257,7 +287,7 @@ class LLMClient:
                     tool_calls=tool_calls_formatted
                 )
                 conversation.append(assistant_msg)
-                
+
                 # 添加工具执行结果
                 for i, result in enumerate(tool_results):
                     tool_call = response.tool_calls[i]
@@ -266,7 +296,7 @@ class LLMClient:
                         tool_call_id=tool_call["id"]
                     )
                     conversation.append(tool_msg)
-                
+
                 # 让LLM基于工具结果生成最终回复
                 logger.info("llm_client", "基于工具结果生成最终回复")
                 # 将消息转换为OpenAI API格式进行调试显示
@@ -276,25 +306,28 @@ class LLMClient:
                     messages=conversation,
                     **call_params
                 )
-                
+
                 # 打印最终响应
                 self._debug_print("从LLM接收的最终响应", {
-                    "content": response.content if hasattr(response, 'content') else str(response),
+                    "content": (
+                    response.content if hasattr(response, 'content')
+                    else str(response)
+                ),
                     "response_type": type(response).__name__
                 })
-            
+
             # 计算调用时长
             duration = time.time() - start_time
-            
+
             # 提取响应内容
             response_content = response.content if hasattr(response, 'content') else str(response)
-            
+
             # 记录API调用日志
             logger.info("llm_client", f"API调用成功: {current_model}, 耗时{duration:.2f}s")
-            
+
             # 更新会话历史和token计数
             self._update_conversation_history(user_message, response, response_content)
-            
+
             # 构建成功响应
             return ChatResponse(
                 success=True,
@@ -314,19 +347,19 @@ class LLMClient:
                     "tool_call_ids": [tc["id"] for tc in response.tool_calls] if hasattr(response, 'tool_calls') and response.tool_calls else [],
                     "llm_latency": duration,
                     "tool_latency": (tool_end_time - tool_start_time) if tool_start_time and tool_end_time else 0,
-                    # 生成参数记录 
+                    # 生成参数记录
                     "generation_params": call_params,
                     **kwargs
                 }
             )
-            
+
         except Exception as e:
             duration = time.time() - start_time
             error_msg = f"LLM API调用失败: {str(e)}"
-            
+
             # 记录错误日志
             logger.error("llm_client", f"API调用失败: {str(e)}")
-            
+
             return ChatResponse(
                 success=False,
                 message="",
@@ -339,14 +372,14 @@ class LLMClient:
                     "tool_latency": 0,
                 }
             )
-    
-    async def _execute_mcp_tool(self, tool_call: Dict[str, Any]) -> str:
+
+    async def _execute_mcp_tool(self, tool_call: dict[str, Any]) -> str:
         """
         执行MCP工具调用（使用标准MCP协议）
-        
+
         Args:
             tool_call: LangChain工具调用对象
-            
+
         Returns:
             工具执行结果
         """
@@ -354,33 +387,33 @@ class LLMClient:
             # 从工具调用中提取信息
             tool_name = tool_call.get('name', '')
             tool_args = tool_call.get('args', {})
-            
+
             logger.info("llm_client", f"执行MCP工具: {tool_name} 参数: {tool_args}")
-            
+
             # 打印MCP工具调用的详细信息
             self._debug_print("MCP工具调用请求", {
                 "tool_name": tool_name,
                 "arguments": tool_args
             })
-            
+
             if not tool_name:
                 return "错误: 工具名称为空"
-            
+
             # 通过MCP Manager调用工具
             if self.mcp_manager:
                 result = await self.mcp_manager.call_tool(tool_name, tool_args)
                 logger.info("llm_client", f"MCP工具调用成功: {tool_name} 结果: {result}")
-                
+
                 # 打印MCP工具调用的结果
                 self._debug_print("MCP工具调用结果", {
                     "tool_name": tool_name,
                     "result": result
                 })
-                
+
                 return str(result)
             else:
                 return "抱歉，工具服务暂时不可用"
-                
+
         except Exception as e:
             logger.error("llm_client", f"工具调用失败: {tool_name} - {str(e)}")
             # 友好降级处理
@@ -389,11 +422,11 @@ class LLMClient:
                 "printer_print": "抱歉，打印功能暂时不可用，请稍后重试或联系技术支持"
             }
             return friendly_messages.get(tool_name, f"抱歉，{tool_name}功能暂时不可用，请稍后重试")
-    
+
     async def validate_connection(self) -> bool:
         """
         验证与LLM服务的连接
-        
+
         Returns:
             bool: 连接是否正常
         """
@@ -403,11 +436,11 @@ class LLMClient:
         except Exception as e:
             logger.error("llm_client", f"连接验证失败: {str(e)}")
             return False
-    
-    def get_model_info(self) -> Dict[str, Any]:
+
+    def get_model_info(self) -> dict[str, Any]:
         """
         获取当前模型信息
-        
+
         Returns:
             Dict[str, Any]: 模型配置信息
         """
@@ -419,12 +452,12 @@ class LLMClient:
             }
         else:
             mcp_info = {"mcp_enabled": False}
-            
+
         return {
-            "model": self.settings.openai_model,
-            "base_url": self.settings.openai_base_url,
-            "max_tokens": self.settings.max_tokens,
-            "temperature": self.settings.temperature,
+            "model": self.settings.llm.model,
+            "base_url": self.settings.llm.base_url,
+            "max_tokens": self.settings.llm.max_tokens,
+            "temperature": self.settings.llm.temperature,
             "client_initialized": self._client is not None,
             **mcp_info
         }

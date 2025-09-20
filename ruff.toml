@@ -1,0 +1,38 @@
+# Ruff 配置文件 - 中等严格度
+# 参考: https://docs.astral.sh/ruff/configuration/
+
+target-version = "py310"
+line-length = 100
+
+[lint]
+# 选择检查规则 - 中等严格度
+select = [
+    "E4",    # 重要的语法错误
+    "E7",    # 缩进错误  
+    "E9",    # 语法错误
+    "F",     # Pyflakes错误（未使用变量、导入等）
+    "I",     # Import排序和组织
+    "W292",  # 文件末尾需要换行
+    "W293",  # 空行包含空格
+]
+
+# 忽略的规则
+ignore = [
+    "E501",  # 行太长（已通过line-length控制）
+]
+
+# 每个目录的特殊规则
+[lint.per-file-ignores]
+"scripts/*" = ["E722"]         # 调试脚本允许bare except
+"tests/*" = ["F401"]           # 测试文件允许未使用的导入
+"generated/*" = ["I001", "F401"]  # 自动生成的文件跳过import检查
+
+# Import排序配置
+[lint.isort]
+known-first-party = ["core", "services", "infrastructure", "interfaces"]
+force-single-line = false
+combine-as-imports = true
+
+# 文档字符串检查（可选，较宽松）
+[lint.pydocstyle]
+convention = "google"  # 使用Google风格的文档字符串

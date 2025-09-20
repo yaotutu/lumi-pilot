@@ -39,10 +39,7 @@ build-backend = "hatchling.build"
 line-length = 88
 target-version = ['py310']
 
-[tool.ruff]
-target-version = "py310"
-line-length = 88
-select = ["E", "F", "I", "N", "W", "UP"]
+# Ruff配置已移至 ruff.toml 文件
 
 [tool.hatch.build.targets.wheel]
 packages = ["core", "services", "infrastructure", "interfaces", "utils"]
@@ -52,3 +49,8 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13.0",
+]

@@ -6,18 +6,22 @@ import asyncio
 import json
 import sys
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any
 
 import click
 
-from infrastructure.logging import setup_logging, get_logger
-from infrastructure.config import get_settings, validate_environment, print_current_config
-from infrastructure.llm import LLMClient
-from services.chat import ChatService
-from services.fault_detection import FaultDetectionService
 from core.application import Application, ServiceRegistry
 from core.models import ServiceRequest
+from infrastructure.config import (
+    get_settings,
+    print_current_config,
+    validate_environment,
+)
+from infrastructure.llm import LLMClient
+from infrastructure.logging import get_logger, setup_logging
 from interfaces.grpc import GRPCServer
+from services.chat import ChatService
+from services.fault_detection import FaultDetectionService
 
 # 初始化模块logger
 logger = get_logger(__name__)
@@ -25,14 +29,14 @@ logger = get_logger(__name__)
 
 class DateTimeEncoder(json.JSONEncoder):
     """自定义JSON编码器，处理datetime对象"""
-    
+
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
 
 
-def safe_json_dumps(data: Dict[str, Any], **kwargs) -> str:
+def safe_json_dumps(data: dict[str, Any], **kwargs) -> str:
     """安全的JSON序列化，处理datetime对象"""
     return json.dumps(data, cls=DateTimeEncoder, **kwargs)
 
@@ -40,26 +44,26 @@ def safe_json_dumps(data: Dict[str, Any], **kwargs) -> str:
 async def create_application(character_file: str = None) -> Application:
     """
     创建应用实例
-    
+
     Args:
         character_file: 角色配置文件路径，如果为None则使用默认角色
-        
+
     Returns:
         Application: 配置好的应用实例
     """
     # 获取配置
-    settings = get_settings()
-    
+    get_settings()
+
     # 创建基础设施
     llm_client = LLMClient()
-    
+
     # 创建服务注册表
     registry = ServiceRegistry()
-    
+
     # 注册服务
     registry.register("chat", ChatService(llm_client, character_file))
     registry.register("fault_detection", FaultDetectionService(llm_client))
-    
+
     # 创建应用
     return Application(registry)
 
@@ -67,29 +71,29 @@ async def create_application(character_file: str = None) -> Application:
 def init_app(enable_console_log: bool = True) -> bool:
     """
     初始化应用
-    
+
     Args:
         enable_console_log: 是否启用控制台日志
-    
+
     Returns:
         bool: 初始化是否成功
     """
     try:
         # 获取配置
         settings = get_settings()
-        
+
         # 设置日志
         setup_logging(
-            log_level=settings.log_level,
-            log_file=settings.log_file,
-            enable_console=enable_console_log and settings.enable_console_log,
-            enable_file=settings.enable_file_log,
+            log_level=settings.system.log_level,
+            log_file=settings.logging.file_path,
+            enable_console=enable_console_log and settings.logging.enable_console,
+            enable_file=settings.logging.enable_file,
         )
-        
+
         logger.info("app", "Lumi Pilot 启动")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"应用初始化失败: {e}", file=sys.stderr)
         return False
@@ -102,9 +106,9 @@ def init_app(enable_console_log: bool = True) -> bool:
 def cli(ctx: click.Context, debug: bool, config: bool):
     """
     Lumi Pilot - 现代化AI服务平台
-    
+
     支持AI对话、故障检测等多种AI服务
-    
+
     使用示例:
     lumi-pilot chat "你好，请介绍一下自己"
     lumi-pilot fault analyze-logs --logs "error.log"
@@ -113,19 +117,19 @@ def cli(ctx: click.Context, debug: bool, config: bool):
     if debug:
         import os
         os.environ['LUMI_DEBUG'] = 'true'
-    
+
     # 检查是否为JSON输出模式
     json_mode = len(sys.argv) > 2 and '--format' in sys.argv and sys.argv[sys.argv.index('--format') + 1] == 'json'
-    
+
     # 初始化应用
     if not init_app(enable_console_log=not json_mode):
         sys.exit(1)
-    
+
     # 显示配置
     if config:
         print_current_config()
         return
-    
+
     # 如果没有子命令，显示帮助
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -143,10 +147,10 @@ def chat():
 @click.option('--temperature', '-t', type=float, help='温度参数 (0.0-2.0)')
 @click.option('--max-tokens', '-m', type=int, help='最大token数')
 @click.option('--format', '-f', type=click.Choice(['json', 'text']), default='json', help='输出格式')
-def send(message: str, character: Optional[str], temperature: Optional[float], max_tokens: Optional[int], format: str):
+def send(message: str, character: str | None, temperature: float | None, max_tokens: int | None, format: str):
     """
     发送消息进行AI对话
-    
+
     MESSAGE: 要发送的消息内容
     """
     asyncio.run(_handle_chat_send(message, character, temperature, max_tokens, format))
@@ -165,14 +169,14 @@ def fault():
 def analyze_logs(logs, log_type: str, format: str):
     """
     分析日志内容，检测潜在问题
-    
+
     示例:
     lumi-pilot fault analyze-logs --logs "ERROR: Connection failed" --logs "WARN: High memory usage"
     """
     if not logs:
         click.echo("错误: 请提供日志内容", err=True)
         sys.exit(1)
-    
+
     asyncio.run(_handle_fault_analyze_logs(list(logs), log_type, format))
 
 
@@ -183,7 +187,7 @@ def analyze_logs(logs, log_type: str, format: str):
 def detect_anomaly(metrics_file, threshold: float, format: str):
     """
     检测系统指标异常
-    
+
     METRICS_FILE: 包含系统指标的JSON文件
     """
     try:
@@ -191,7 +195,7 @@ def detect_anomaly(metrics_file, threshold: float, format: str):
     except json.JSONDecodeError as e:
         click.echo(f"错误: 无效的JSON文件: {e}", err=True)
         sys.exit(1)
-    
+
     asyncio.run(_handle_fault_detect_anomaly(metrics, threshold, format))
 
 
@@ -205,7 +209,7 @@ def health():
 def validate():
     """验证环境配置"""
     is_valid, errors = validate_environment()
-    
+
     result = {
         "status": "valid" if is_valid else "invalid",
         "code": 200 if is_valid else 400,
@@ -214,9 +218,9 @@ def validate():
             "errors": errors
         }
     }
-    
+
     print(safe_json_dumps(result, ensure_ascii=False, indent=2))
-    
+
     if not is_valid:
         sys.exit(1)
 
@@ -232,9 +236,9 @@ def characters():
     """列出所有可用角色"""
     from utils.personality import get_personality_manager
     personality_manager = get_personality_manager()
-    
+
     available_chars = personality_manager.list_available_characters()
-    
+
     result = {
         "status": "success",
         "code": 200,
@@ -243,7 +247,7 @@ def characters():
             "characters": []
         }
     }
-    
+
     # 获取所有角色信息
     for char_name in available_chars:
         char_info = personality_manager.get_character_info(char_name)
@@ -253,7 +257,7 @@ def characters():
                 "display_name": char_info.get("name", char_name),
                 "description": char_info.get("description", "")
             })
-    
+
     print(safe_json_dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -269,16 +273,16 @@ def grpc():
 def serve(host: str, port: int):
     """
     启动gRPC服务器
-    
+
     启动gRPC服务器，提供AI对话等服务的gRPC接口
     """
     try:
         logger.info("cli_grpc", f"启动gRPC服务器 {host}:{port}")
-        
+
         # 创建并启动gRPC服务器
         server = GRPCServer(host=host, port=port)
         server.start()
-        
+
     except KeyboardInterrupt:
         print("\n\ngRPC服务器已停止")
     except Exception as e:
@@ -293,10 +297,10 @@ def serve(host: str, port: int):
 
 
 async def _handle_chat_send(
-    message: str, 
-    character: Optional[str] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
+    message: str,
+    character: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
     format: str = 'json'
 ):
     """处理聊天发送请求"""
@@ -313,7 +317,7 @@ async def _handle_chat_send(
             }
             print(safe_json_dumps(error_result, ensure_ascii=False, indent=2))
             sys.exit(1)
-        
+
         # 确定角色文件路径
         character_file = None
         if character:
@@ -322,29 +326,29 @@ async def _handle_chat_send(
             if not character_file.exists():
                 print(f"错误: 角色文件不存在: {character_file}", file=sys.stderr)
                 sys.exit(1)
-        
+
         # 创建应用（指定角色文件）
         app = await create_application(str(character_file) if character_file else None)
-        
+
         # 准备请求数据
         payload = {
             "message": message
         }
-        
+
         if temperature is not None:
             payload['temperature'] = temperature
         if max_tokens is not None:
             payload['max_tokens'] = max_tokens
-        
+
         # 创建服务请求
         request = ServiceRequest(
             action="chat",
             payload=payload
         )
-        
+
         # 执行请求
         response = await app.execute("chat", request)
-        
+
         # 输出结果
         if format == 'json':
             result = {
@@ -362,7 +366,7 @@ async def _handle_chat_send(
             else:
                 print(f"错误: {response.error}", file=sys.stderr)
                 sys.exit(1)
-        
+
     except KeyboardInterrupt:
         print("\n\n操作已取消")
         sys.exit(130)
@@ -382,7 +386,7 @@ async def _handle_fault_analyze_logs(logs: list, log_type: str, format: str):
     """处理日志分析请求"""
     try:
         app = await create_application()
-        
+
         request = ServiceRequest(
             action="analyze_logs",
             payload={
@@ -390,9 +394,9 @@ async def _handle_fault_analyze_logs(logs: list, log_type: str, format: str):
                 "log_type": log_type
             }
         )
-        
+
         response = await app.execute("fault_detection", request)
-        
+
         result = {
             "status": "success" if response.success else "error",
             "code": 200 if response.success else 500,
@@ -401,7 +405,7 @@ async def _handle_fault_analyze_logs(logs: list, log_type: str, format: str):
             "data": response.data if response.success else {},
             "metadata": response.metadata.dict()
         }
-        
+
         if format == 'json':
             print(safe_json_dumps(result, ensure_ascii=False, indent=2))
         else:
@@ -410,7 +414,7 @@ async def _handle_fault_analyze_logs(logs: list, log_type: str, format: str):
             else:
                 print(f"错误: {response.error}", file=sys.stderr)
                 sys.exit(1)
-                
+
     except Exception as e:
         error_result = {
             "status": "error",
@@ -422,11 +426,11 @@ async def _handle_fault_analyze_logs(logs: list, log_type: str, format: str):
         sys.exit(1)
 
 
-async def _handle_fault_detect_anomaly(metrics: Dict[str, Any], threshold: float, format: str):
+async def _handle_fault_detect_anomaly(metrics: dict[str, Any], threshold: float, format: str):
     """处理异常检测请求"""
     try:
         app = await create_application()
-        
+
         request = ServiceRequest(
             action="detect_anomaly",
             payload={
@@ -434,9 +438,9 @@ async def _handle_fault_detect_anomaly(metrics: Dict[str, Any], threshold: float
                 "threshold": threshold
             }
         )
-        
+
         response = await app.execute("fault_detection", request)
-        
+
         result = {
             "status": "success" if response.success else "error",
             "code": 200 if response.success else 500,
@@ -445,7 +449,7 @@ async def _handle_fault_detect_anomaly(metrics: Dict[str, Any], threshold: float
             "data": response.data if response.success else {},
             "metadata": response.metadata.dict()
         }
-        
+
         if format == 'json':
             print(safe_json_dumps(result, ensure_ascii=False, indent=2))
         else:
@@ -454,7 +458,7 @@ async def _handle_fault_detect_anomaly(metrics: Dict[str, Any], threshold: float
             else:
                 print(f"错误: {response.error}", file=sys.stderr)
                 sys.exit(1)
-                
+
     except Exception as e:
         error_result = {
             "status": "error",
@@ -471,19 +475,19 @@ async def _handle_health_check():
     try:
         app = await create_application()
         health_result = await app.health_check()
-        
+
         result = {
             "status": "healthy" if health_result["application_healthy"] else "unhealthy",
             "code": 200 if health_result["application_healthy"] else 503,
             "message": "所有服务正常" if health_result["application_healthy"] else "部分服务异常",
             "data": health_result
         }
-        
+
         print(safe_json_dumps(result, ensure_ascii=False, indent=2))
-        
+
         if not health_result["application_healthy"]:
             sys.exit(1)
-            
+
     except Exception as e:
         error_result = {
             "status": "error",
@@ -500,7 +504,7 @@ async def _handle_list_services():
     try:
         app = await create_application()
         services = app.registry.list_services()
-        
+
         result = {
             "status": "success",
             "code": 200,
@@ -509,7 +513,7 @@ async def _handle_list_services():
                 "services": []
             }
         }
-        
+
         for service_name in services:
             service = app.registry.get(service_name)
             result["data"]["services"].append({
@@ -517,9 +521,9 @@ async def _handle_list_services():
                 "display_name": service.get_service_name(),
                 "supported_actions": service.get_supported_actions()
             })
-        
+
         print(safe_json_dumps(result, ensure_ascii=False, indent=2))
-        
+
     except Exception as e:
         error_result = {
             "status": "error",

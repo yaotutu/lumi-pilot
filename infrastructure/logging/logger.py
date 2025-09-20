@@ -5,7 +5,6 @@
 import logging
 import logging.handlers
 from pathlib import Path
-from typing import Any
 
 import structlog
 
@@ -22,7 +21,7 @@ def setup_logging(
     # 创建日志目录
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
-    
+
     # 配置structlog处理器
     processors = [
         structlog.stdlib.filter_by_level,
@@ -32,12 +31,12 @@ def setup_logging(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
     ]
-    
+
     if enable_console:
         processors.append(structlog.dev.ConsoleRenderer(colors=True))
     else:
         processors.append(structlog.processors.JSONRenderer())
-    
+
     structlog.configure(
         processors=processors,
         context_class=dict,
@@ -45,21 +44,21 @@ def setup_logging(
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
-    
+
     # 配置标准库logging
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, log_level.upper()))
-    
+
     # 清除现有handlers
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-    
+
     # 添加控制台handler
     if enable_console:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(getattr(logging, log_level.upper()))
         root_logger.addHandler(console_handler)
-    
+
     # 添加文件handler
     if enable_file:
         # 检查log_file是否已经包含路径
@@ -70,7 +69,7 @@ def setup_logging(
         else:
             # 如果log_file只是文件名，在logs目录下创建
             log_path = log_dir / log_file
-            
+
         file_handler = logging.handlers.RotatingFileHandler(
             log_path,
             maxBytes=10 * 1024 * 1024,  # 10MB
@@ -82,23 +81,23 @@ def setup_logging(
 
 class SimpleLogger:
     """简化的日志记录器，tag+消息格式"""
-    
+
     def __init__(self, module_name: str):
         self.module_name = module_name.replace('lumi_pilot.', '').replace('__main__', 'main')
         self._logger = structlog.get_logger(self.module_name)
-    
+
     def info(self, tag: str, message: str):
         """记录信息日志"""
         self._logger.info(f"[{tag}] {message}")
-    
+
     def error(self, tag: str, message: str):
         """记录错误日志"""
         self._logger.error(f"[{tag}] {message}")
-    
+
     def warning(self, tag: str, message: str):
         """记录警告日志"""
         self._logger.warning(f"[{tag}] {message}")
-    
+
     def debug(self, tag: str, message: str):
         """记录调试日志"""
         self._logger.debug(f"[{tag}] {message}")
@@ -107,13 +106,13 @@ class SimpleLogger:
 def get_logger(name: str) -> SimpleLogger:
     """
     获取简化的日志记录器
-    
+
     Args:
         name: 日志记录器名称，通常使用 __name__
-        
+
     Returns:
         SimpleLogger实例
-        
+
     使用示例：
         logger = get_logger(__name__)
         logger.info("tag", "消息内容")

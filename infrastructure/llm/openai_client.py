@@ -2,9 +2,10 @@
 原生OpenAI HTTP客户端
 替代LangChain，直接使用httpx调用OpenAI兼容的API
 """
-import httpx
 import json
-from typing import Dict, Any, List, Optional, Union
+from typing import Any
+
+import httpx
 from pydantic import BaseModel
 
 from infrastructure.logging.logger import get_logger
@@ -16,16 +17,16 @@ class Message(BaseModel):
     """消息对象"""
     role: str  # "system", "user", "assistant", "tool"
     content: str
-    name: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
+    name: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = None
 
 
 class ToolCall(BaseModel):
     """工具调用对象"""
     id: str
     type: str = "function"
-    function: Dict[str, Any]  # {"name": "tool_name", "arguments": "json_string"}
+    function: dict[str, Any]  # {"name": "tool_name", "arguments": "json_string"}
 
 
 class ChatResponse(BaseModel):
@@ -34,9 +35,9 @@ class ChatResponse(BaseModel):
     object: str = "chat.completion"
     created: int
     model: str
-    choices: List[Dict[str, Any]]
-    usage: Optional[Dict[str, Any]] = None
-    
+    choices: list[dict[str, Any]]
+    usage: dict[str, Any] | None = None
+
     @property
     def content(self) -> str:
         """获取回复内容"""
@@ -44,9 +45,9 @@ class ChatResponse(BaseModel):
             message = self.choices[0].get("message", {})
             return message.get("content", "")
         return ""
-    
+
     @property
-    def tool_calls(self) -> List[Dict[str, Any]]:
+    def tool_calls(self) -> list[dict[str, Any]]:
         """获取工具调用列表"""
         if self.choices and len(self.choices) > 0:
             message = self.choices[0].get("message", {})
@@ -70,7 +71,7 @@ class OpenAIClient:
     原生OpenAI HTTP客户端
     使用httpx直接调用OpenAI兼容的API，替代LangChain
     """
-    
+
     def __init__(
         self,
         api_key: str,
@@ -87,17 +88,17 @@ class OpenAIClient:
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.timeout = timeout
-        
+
         # 构建请求头
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "User-Agent": "Lumi-Pilot-LLM/1.0"
         }
-        
+
         logger.info("openai_client", f"初始化OpenAI客户端: {model}")
-    
-    def _convert_messages(self, messages: List[Union[Message, Dict[str, Any]]]) -> List[Dict[str, Any]]:
+
+    def _convert_messages(self, messages: list[Message | dict[str, Any]]) -> list[dict[str, Any]]:
         """将消息转换为OpenAI API格式"""
         converted = []
         for msg in messages:
@@ -123,7 +124,7 @@ class OpenAIClient:
                     # LangChain消息对象兼容
                     role_mapping = {
                         "system": "system",
-                        "human": "user", 
+                        "human": "user",
                         "ai": "assistant",
                         "tool": "tool"
                     }
@@ -134,21 +135,21 @@ class OpenAIClient:
                 else:
                     logger.warning("openai_client", f"未知消息格式: {type(msg)}")
                     converted.append({"role": "user", "content": str(msg)})
-        
+
         return converted
-    
+
     async def chat_completion(
         self,
-        messages: List[Union[Message, Dict[str, Any]]],
-        tools: Optional[List[Dict[str, Any]]] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
+        messages: list[Message | dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
         **kwargs
     ) -> ChatResponse:
         """
         发送聊天完成请求
-        
+
         Args:
             messages: 消息列表
             tools: 工具定义列表
@@ -156,7 +157,7 @@ class OpenAIClient:
             max_tokens: 最大token数（可覆盖默认值）
             temperature: 温度参数（可覆盖默认值）
             **kwargs: 其他参数
-            
+
         Returns:
             ChatResponse: 聊天响应对象
         """
@@ -168,14 +169,14 @@ class OpenAIClient:
             "temperature": temperature if temperature is not None else self.temperature,
             **kwargs
         }
-        
+
         # 添加工具定义
         if tools:
             request_data["tools"] = tools
-        
+
         # 发送HTTP请求
         url = f"{self.base_url}/chat/completions"
-        
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
@@ -183,17 +184,17 @@ class OpenAIClient:
                     headers=self.headers,
                     json=request_data
                 )
-                
+
                 # 检查HTTP状态码
                 if response.status_code != 200:
                     error_text = response.text
                     logger.error("openai_client", f"API请求失败: {response.status_code} - {error_text}")
                     raise Exception(f"Error code: {response.status_code} - {error_text}")
-                
+
                 # 解析响应
                 response_data = response.json()
                 return ChatResponse(**response_data)
-                
+
         except httpx.TimeoutException:
             logger.error("openai_client", f"API请求超时: {self.timeout}秒")
             raise Exception(f"API请求超时: {self.timeout}秒")
@@ -219,7 +220,7 @@ def create_user_message(content: str) -> Message:
     return Message(role="user", content=content)
 
 
-def create_assistant_message(content: str, tool_calls: Optional[List[Dict[str, Any]]] = None) -> Message:
+def create_assistant_message(content: str, tool_calls: list[dict[str, Any]] | None = None) -> Message:
     """创建助手消息"""
     return Message(role="assistant", content=content, tool_calls=tool_calls)
 

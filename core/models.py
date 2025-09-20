@@ -3,8 +3,9 @@
 包含所有服务共享的基础数据结构
 """
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any
 from uuid import uuid4
+
 from pydantic import BaseModel, Field
 
 
@@ -12,16 +13,16 @@ class RequestContext(BaseModel):
     """请求上下文信息"""
     request_id: str = Field(default_factory=lambda: str(uuid4()))
     timestamp: datetime = Field(default_factory=datetime.now)
-    user_id: Optional[str] = None
-    trace_id: Optional[str] = None
-    session_id: Optional[str] = None
+    user_id: str | None = None
+    trace_id: str | None = None
+    session_id: str | None = None
 
 
 class ResponseMetadata(BaseModel):
     """响应元数据"""
     request_id: str
     timestamp: datetime = Field(default_factory=datetime.now)
-    duration: Optional[float] = None
+    duration: float | None = None
     service_name: str
     action: str
     app_name: str = "Lumi Pilot"
@@ -31,10 +32,10 @@ class ResponseMetadata(BaseModel):
 class ServiceRequest(BaseModel):
     """统一服务请求模型"""
     action: str
-    payload: Dict[str, Any]
-    context: Optional[RequestContext] = None
-    metadata: Optional[Dict[str, Any]] = None
-    
+    payload: dict[str, Any]
+    context: RequestContext | None = None
+    metadata: dict[str, Any] | None = None
+
     def __init__(self, **data):
         if 'context' not in data or data['context'] is None:
             data['context'] = RequestContext()
@@ -44,18 +45,18 @@ class ServiceRequest(BaseModel):
 class ServiceResponse(BaseModel):
     """统一服务响应模型"""
     success: bool
-    data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    data: dict[str, Any] | None = None
+    error: str | None = None
     metadata: ResponseMetadata
-    
+
     @classmethod
     def success_response(
         cls,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         service_name: str,
         action: str,
         request_id: str,
-        duration: Optional[float] = None
+        duration: float | None = None
     ) -> 'ServiceResponse':
         """创建成功响应"""
         return cls(
@@ -68,7 +69,7 @@ class ServiceResponse(BaseModel):
                 action=action
             )
         )
-    
+
     @classmethod
     def error_response(
         cls,
@@ -76,7 +77,7 @@ class ServiceResponse(BaseModel):
         service_name: str,
         action: str,
         request_id: str,
-        duration: Optional[float] = None
+        duration: float | None = None
     ) -> 'ServiceResponse':
         """创建错误响应"""
         return cls(
@@ -96,5 +97,5 @@ class HealthStatus(BaseModel):
     healthy: bool
     service_name: str
     timestamp: datetime = Field(default_factory=datetime.now)
-    details: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    details: dict[str, Any] | None = None
+    error: str | None = None
