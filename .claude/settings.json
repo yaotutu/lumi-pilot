@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/scripts/post_completion_hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}
