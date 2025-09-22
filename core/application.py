@@ -171,11 +171,15 @@ class ApplicationBuilder:
         from services.fault_detection import FaultDetectionService
 
         logger = get_logger(__name__)
-        get_settings()
+        settings = get_settings()
 
-        # 初始化MCP管理器
-        logger.info("application", "正在初始化MCP管理器...")
-        mcp_manager = await MCPFactory.create_with_default_config()
+        # 根据配置决定是否初始化MCP管理器
+        mcp_manager = None
+        if settings.mcp.enabled:
+            logger.info("application", "MCP已启用，正在初始化MCP管理器...")
+            mcp_manager = await MCPFactory.create_with_default_config()
+        else:
+            logger.info("application", "MCP已禁用，跳过MCP管理器初始化")
 
         # 创建基础设施（将MCP管理器传递给LLM客户端）
         llm_client = LLMClient(mcp_manager=mcp_manager)

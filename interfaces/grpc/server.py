@@ -59,8 +59,13 @@ class GRPCServer:
             # 创建应用实例
             self.application = await self.create_application()
 
+            # 从配置获取max_workers设置
+            settings = get_settings()
+            max_workers = settings.grpc.max_workers
+            logger.info("grpc_server", f"gRPC服务器工作线程数: {max_workers}")
+
             # 创建gRPC服务器
-            self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+            self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
 
             # 注册服务处理器
             service_handler = LumiPilotServiceHandler(self.application)
@@ -124,8 +129,8 @@ async def main():
 
     logger.info("grpc_main", "启动Lumi Pilot gRPC服务")
 
-    # 创建并启动服务器
-    server = GRPCServer()
+    # 创建并启动服务器，使用配置文件中的设置
+    server = GRPCServer(host=settings.grpc.host, port=settings.grpc.port)
     await server.start()
 
 

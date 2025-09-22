@@ -2,6 +2,7 @@
 MCP工厂模块
 提供MCP组件的初始化和配置功能
 """
+from infrastructure.config import get_settings
 from infrastructure.logging.logger import get_logger
 
 from .client import MCPManager
@@ -23,8 +24,13 @@ class MCPFactory:
         try:
             logger.info("mcp_factory", "创建内部MCP服务器管理器")
 
+            # 获取配置中的超时设置
+            settings = get_settings()
+            timeout = settings.mcp.timeout
+            logger.info("mcp_factory", f"MCP超时设置: {timeout}秒")
+
             # 创建MCP管理器
-            mcp_manager = MCPManager()
+            mcp_manager = MCPManager(timeout=timeout)
 
             # 初始化内部服务器
             await mcp_manager.connect_all()

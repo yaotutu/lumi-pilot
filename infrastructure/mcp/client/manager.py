@@ -2,6 +2,7 @@
 MCP客户端实现
 基于FastMCP库提供统一的MCP服务器连接和工具调用功能
 """
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,9 +30,10 @@ class MCPManager:
     负责管理多个MCP服务器连接和工具调用
     """
 
-    def __init__(self):
+    def __init__(self, timeout: int = 30):
         self.clients: dict[str, Client] = {}
         self.tools: dict[str, MCPTool] = {}  # tool_name -> MCPTool
+        self.timeout = timeout  # MCP工具调用超时时间（秒）
 
 
     async def connect_all(self) -> None:
@@ -136,10 +138,13 @@ class MCPManager:
         try:
             logger.info("mcp_manager", f"调用工具: {tool_name} 参数: {arguments}")
 
-            # 使用async with context manager来管理连接
+            # 使用async with context manager来管理连接，并应用超时
             async with client:
-                # 调用MCP工具
-                result = await client.call_tool(tool.name, arguments)
+                # 调用MCP工具，使用配置的超时时间
+                result = await asyncio.wait_for(
+                    client.call_tool(tool.name, arguments),
+                    timeout=self.timeout
+                )
 
                 logger.info("mcp_manager", f"工具调用成功: {tool_name}")
 
@@ -149,8 +154,11 @@ class MCPManager:
                 else:
                     return str(result)
 
+        except asyncio.TimeoutError:
+            logger.error("mcp_manager", f"工具调用超时: {tool_name} (超时时间: {self.timeout}s)")
+            raise ValueError(f"工具调用超时: {tool_name}")
         except Exception as e:
-            logger.error("mcp_manager", f"工具调用失败: {tool_name} 错误: {e}")
+            logger.error("mcp_manager", f"工具调用失败: {tool_name} 错误: {str(e)}")
             raise
 
     async def disconnect_all(self) -> None:
