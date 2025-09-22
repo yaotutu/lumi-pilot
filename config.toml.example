@@ -33,6 +33,15 @@ print_document = "/api/v1.0/home/print/document"
 print_queue = "/api/v1.0/home/print/queue"
 print_progress = "/api/v1.0/home/print/progress"
 
+[printer_monitoring]
+# 3D打印机监控配置
+camera_url = "http://192.168.1.100/webcam/?action=stream"  # 摄像头视频流URL，请替换为您的摄像头地址
+debug_mode = true                                          # 调试模式：是否保存截图和分析结果 (true/false)
+debug_save_path = "debug/printer_monitoring"             # 调试文件保存路径（相对于项目根目录）
+capture_timeout = 15                                      # 截图超时时间（秒）
+analysis_model = "zai-org/GLM-4.5V"                     # 视觉分析模型名称
+max_debug_files = 100                                     # 最大保留的调试文件数量（超出会自动删除旧文件）
+
 [mcp]
 # MCP服务器配置
 enabled = true

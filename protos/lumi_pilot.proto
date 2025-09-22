@@ -6,6 +6,9 @@ package lumi_pilot;
 service LumiPilotService {
   // AI对话
   rpc Chat(ChatRequest) returns (ChatResponse);
+  
+  // 3D打印机监控：一次完整的截图+分析流程
+  rpc MonitorPrinter(PrinterMonitorRequest) returns (PrinterMonitorResponse);
 }
 
 // 对话请求
@@ -27,4 +30,36 @@ message ResponseMetadata {
   string model = 2;                      // 模型名称
   double duration = 3;                   // 处理时长(秒)
   string timestamp = 4;                  // 时间戳
+}
+
+// 3D打印机监控请求
+message PrinterMonitorRequest {
+  string camera_url = 1;                 // 摄像头URL（可选，不提供则使用配置文件中的默认值）
+}
+
+// 3D打印机监控响应
+message PrinterMonitorResponse {
+  bool success = 1;                      // 是否成功
+  string status = 2;                     // 打印机状态：working/idle/error
+  int32 quality_score = 3;               // 质量评分 0-100
+  repeated string issues = 4;            // 发现的问题列表
+  repeated string recommendations = 5;   // 改进建议列表
+  repeated string safety_alerts = 6;     // 安全警告列表
+  string summary = 7;                    // AI分析总结
+  bool image_captured = 8;               // 是否成功截取图片
+  string analysis_model = 9;             // 使用的分析模型
+  string error = 10;                     // 错误信息（失败时）
+  PrinterMonitorMetadata metadata = 11;  // 监控元数据
+}
+
+// 打印机监控元数据
+message PrinterMonitorMetadata {
+  string request_id = 1;                 // 请求ID
+  double duration = 2;                   // 处理时长(秒)
+  string timestamp = 3;                  // 时间戳
+  string camera_url = 4;                 // 实际使用的摄像头URL
+  int64 image_size = 5;                  // 截图大小(bytes)
+  bool debug_mode = 6;                   // 是否开启调试模式
+  string debug_image_file = 7;           // 调试截图文件路径（调试模式下）
+  string debug_result_file = 8;          // 调试分析文件路径（调试模式下）
 }

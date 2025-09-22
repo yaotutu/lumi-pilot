@@ -169,6 +169,7 @@ class ApplicationBuilder:
         from infrastructure.mcp import MCPFactory
         from services.chat import ChatService
         from services.fault_detection import FaultDetectionService
+        from services.printer_monitoring import PrinterMonitoringService
 
         logger = get_logger(__name__)
         settings = get_settings()
@@ -190,6 +191,7 @@ class ApplicationBuilder:
         # 注册服务
         registry.register("chat", ChatService(llm_client, mcp_manager=mcp_manager))
         registry.register("fault_detection", FaultDetectionService(llm_client))
+        registry.register("printer_monitoring", PrinterMonitoringService())
 
         # 创建应用
         return Application(registry)

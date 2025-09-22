@@ -44,6 +44,16 @@ class PrinterConfig(BaseModel):
     endpoints: PrinterEndpoints = Field(..., description="API端点")
 
 
+class PrinterMonitoringConfig(BaseModel):
+    """3D打印机监控配置"""
+    camera_url: str = Field(..., description="摄像头视频流URL")
+    debug_mode: bool = Field(default=False, description="调试模式：保存截图和分析结果")
+    debug_save_path: str = Field(default="debug/printer_monitoring", description="调试文件保存路径")
+    capture_timeout: int = Field(default=15, description="截图超时时间（秒）")
+    analysis_model: str = Field(default="zai-org/GLM-4.5V", description="视觉分析模型")
+    max_debug_files: int = Field(default=100, description="最大调试文件数量")
+
+
 class MCPConfig(BaseModel):
     """MCP配置"""
     enabled: bool = Field(default=True, description="是否启用MCP")
@@ -86,6 +96,7 @@ class LumiPilotSettings(BaseModel):
     system: SystemConfig = Field(..., description="系统配置")
     llm: LLMConfig = Field(..., description="LLM配置")
     printer: PrinterConfig = Field(..., description="打印机配置")
+    printer_monitoring: PrinterMonitoringConfig = Field(..., description="3D打印机监控配置")
     mcp: MCPConfig = Field(..., description="MCP配置")
     grpc: GRPCConfig = Field(..., description="gRPC配置")
     logging: LoggingConfig = Field(..., description="日志配置")
