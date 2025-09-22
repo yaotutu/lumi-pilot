@@ -8,6 +8,7 @@ from typing import Optional
 import httpx
 from PIL import Image
 
+from infrastructure.config.settings import get_settings
 from infrastructure.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -19,14 +20,18 @@ class CameraCaptureClient:
     大多数网络摄像头都支持MJPEG流，直接HTTP请求即可
     """
 
-    def __init__(self, timeout: int = 10):
+    def __init__(self, timeout: Optional[int] = None):
         """
         初始化摄像头捕获客户端
 
         Args:
-            timeout: 请求超时时间（秒）
+            timeout: 请求超时时间（秒），为None时使用配置文件中的值
         """
-        self.timeout = timeout
+        if timeout is None:
+            settings = get_settings()
+            self.timeout = settings.printer_monitoring.capture_timeout
+        else:
+            self.timeout = timeout
 
     async def capture_from_stream(self, stream_url: str) -> Optional[bytes]:
         """

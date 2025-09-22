@@ -25,22 +25,23 @@ class VisionAnalysisResult:
 class VisionAnalysisClient:
     """
     视觉分析客户端
-    专门用于处理图片分析任务，使用GLM-4.5V模型
+    专门用于处理图片分析任务，使用配置的视觉分析模型
     """
 
     def __init__(self):
         """初始化视觉分析客户端"""
         self.settings = get_settings()
+        # 从配置读取分析模型
+        self.model = self.settings.printer_monitoring.analysis_model
+
         # 初始化OpenAI客户端，使用配置中的参数
         self.client = OpenAIClient(
             api_key=self.settings.llm.api_key,
             base_url=self.settings.llm.base_url,
-            model="zai-org/GLM-4.5V",  # 固定使用GLM-4.5V模型
+            model=self.model,
             max_tokens=1000,
             temperature=0.1
         )
-        # 固定使用GLM-4.5V模型
-        self.model = "zai-org/GLM-4.5V"
 
         # 3D打印机专用分析提示词
         self.printer_analysis_prompt = """你是一个专业的3D打印专家和质量检测员。请仔细分析这张3D打印机的照片，检测打印状态和质量问题。
@@ -115,7 +116,7 @@ class VisionAnalysisClient:
                 }
             ]
 
-            # 调用GLM-4.5V模型
+            # 调用配置的视觉分析模型
             response = await self.client.chat_completion(
                 model=self.model,
                 messages=messages,
@@ -209,7 +210,7 @@ class VisionAnalysisClient:
                 }
             ]
 
-            # 调用GLM-4.5V模型
+            # 调用配置的视觉分析模型
             response = await self.client.chat_completion(
                 model=self.model,
                 messages=messages,
