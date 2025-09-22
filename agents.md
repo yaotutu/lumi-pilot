@@ -31,6 +31,15 @@ uv run lumi-pilot --config
 
 ## 开发命令
 
+### 初始配置
+```bash
+# 复制示例配置文件
+cp config.toml.example config.toml
+
+# 编辑配置文件，设置您的API密钥等信息
+vim config.toml  # 或使用您喜欢的编辑器
+```
+
 ### 依赖管理
 ```bash
 # 安装依赖

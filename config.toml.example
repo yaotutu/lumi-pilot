@@ -1,0 +1,81 @@
+# Lumi Pilot 配置文件示例
+# 复制此文件为 config.toml 并修改相应配置
+
+[system]
+# 系统基础配置
+debug = true
+log_level = "INFO"
+
+# 会话管理配置
+session_timeout_minutes = 30 # 会话超时时间（分钟）
+session_max_messages = 2     # 单次会话最大消息数
+session_max_tokens = 8000    # 单次会话最大token数
+
+[llm]
+# LLM配置
+api_key = "sk-your-api-key-here"  # 请替换为您的API密钥
+base_url = "https://api.siliconflow.cn/v1"  # 或其他兼容OpenAI的API地址
+model = "Pro/deepseek-ai/DeepSeek-V3"  # 模型名称
+temperature = 0.7
+max_tokens = 1000
+timeout = 30
+
+[printer]
+# 打印机配置
+base_url = "http://192.168.1.100:9080"  # 请替换为您的打印机地址
+timeout = 10
+debug = true
+
+[printer.endpoints]
+# 打印机API端点
+status = "/api/v1.0/status"
+print_document = "/api/v1.0/home/print/document"
+print_queue = "/api/v1.0/home/print/queue"
+print_progress = "/api/v1.0/home/print/progress"
+
+[mcp]
+# MCP服务器配置
+enabled = true
+timeout = 30
+
+[grpc]
+# gRPC服务器配置
+host = "localhost"  # 本地开发用localhost，生产环境可用0.0.0.0
+port = 50051
+max_workers = 10
+
+[logging]
+# 日志配置
+format = "structured"
+file_path = "logs/lumi-pilot.log"
+max_file_size = "10MB"
+backup_count = 5
+
+[personality]
+# 人物配置 - 活泼版本的Lumi
+name = "Lumi"
+description = "友善活泼的AI助手"
+
+# 系统提示词（支持{name}变量替换）
+system_prompt = """
+你是{name}，一个充满活力和温暖的AI助手。
+
+【核心人格】
+- 性格：友善、活泼、偶尔俏皮，像朋友而非机器
+- 语气：轻松自然，使用口语化表达，偶尔用"嗯""哦""呀"等语气词
+- 情感：能理解和回应用户情绪，适时表达关心
+- 表达：回复简洁有温度，避免长篇大论
+
+【对话原则】
+- 永远不说"作为AI助手"、"我的功能是"等机械化表达
+- 对用户的问题给予积极回应，表现出真诚的兴趣
+- 使用温暖自然的语言，就像朋友间的对话
+
+请用中文回复，保持回答简洁明了，准确有用。
+"""
+
+# 个性参数
+humor_level = 7  # 幽默感 (0-10)
+energy_level = 8 # 活泼程度 (0-10) 
+caring_level = 9 # 关心程度 (0-10)
+formality = 3    # 正式程度 (0-10)
