@@ -2,12 +2,17 @@
 聊天服务实现
 基于现有ChatService重构为符合新架构的服务
 """
+from pathlib import Path
+
 from core.models import HealthStatus, ServiceRequest, ServiceResponse
 from infrastructure.llm.client import LLMClient
 from infrastructure.mcp.client import MCPManager
 
 # 移除了personality导入，现在直接使用配置文件
 from .models import ChatRequest
+
+from infrastructure.logging.logger import get_logger
+logger = get_logger(__name__)
 
 
 class ChatService:
@@ -37,7 +42,45 @@ class ChatService:
         # 从配置文件获取人物设定
         from infrastructure.config import get_settings
         settings = get_settings()
-        self.system_prompt = settings.personality.system_prompt
+        
+        # 加载系统提示词
+        self.system_prompt = self._load_system_prompt(settings)
+    
+    def _load_system_prompt(self, settings) -> str:
+        """
+        加载系统提示词
+
+        Args:
+            settings: 配置设置
+
+        Returns:
+            str: 系统提示词
+        """
+        try:
+            # 构建提示词文件路径
+            prompt_path = Path(__file__).parent / "prompts" / "system_prompt.txt"
+            
+            # 如果特定于聊天的提示词文件不存在，尝试通用路径
+            if not prompt_path.exists():
+                prompt_path = Path(__file__).parent.parent.parent / "prompts" / "chat" / "system_prompt.txt"
+            
+            # 如果文件存在，加载外部提示词
+            if prompt_path.exists():
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    system_prompt = f.read().strip()
+                    # 处理名称变量替换
+                    name = settings.personality.name
+                    if '{name}' in system_prompt:
+                        system_prompt = system_prompt.format(name=name)
+                    return system_prompt
+            
+            # 回退到配置文件中的提示词
+            logger.warning("prompt", f"提示词文件不存在，使用配置文件中的提示词: {prompt_path}")
+            return settings.personality.system_prompt
+            
+        except Exception as e:
+            logger.error("prompt", f"加载提示词失败，使用配置文件中的提示词: {str(e)}")
+            return settings.personality.system_prompt
 
     async def process(self, request: ServiceRequest) -> ServiceResponse:
         """

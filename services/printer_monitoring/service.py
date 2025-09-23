@@ -136,24 +136,42 @@ class PrinterMonitoringService:
         except Exception as e:
             logger.warning("cleanup", f"清理调试文件时出错: {str(e)}")
 
-    async def _analyze_printer_image(self, image_data: bytes) -> str:
+    def _load_analysis_prompt(self) -> str:
         """
-        使用LLM分析3D打印机图片
-
-        Args:
-            image_data: 图片数据（bytes格式）
+        加载3D打印机分析提示词
 
         Returns:
-            str: 分析结果
+            str: 分析提示词
         """
         try:
-            logger.info("printer_analysis", f"开始分析3D打印机图片，图片大小: {len(image_data)} bytes")
+            # 构建提示词文件路径
+            prompt_path = Path(__file__).parent / "prompts" / "analysis_prompt.txt"
+            
+            # 如果特定于打印机监控的提示词文件不存在，尝试通用路径
+            if not prompt_path.exists():
+                prompt_path = Path(__file__).parent.parent.parent / "prompts" / "printer_monitoring" / "analysis_prompt.txt"
+            
+            # 如果文件存在，加载外部提示词
+            if prompt_path.exists():
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    return f.read().strip()
+            
+            # 回退到默认提示词
+            logger.warning("prompt", f"提示词文件不存在，使用默认提示词: {prompt_path}")
+            return self._get_default_analysis_prompt()
+            
+        except Exception as e:
+            logger.error("prompt", f"加载提示词失败，使用默认提示词: {str(e)}")
+            return self._get_default_analysis_prompt()
 
-            # 将图片转换为base64
-            image_base64 = base64.b64encode(image_data).decode('utf-8')
+    def _get_default_analysis_prompt(self) -> str:
+        """
+        获取默认的3D打印机分析提示词
 
-            # 3D打印机专用分析提示词
-            printer_analysis_prompt = """你是一个专业的3D打印专家和质量检测员。请仔细分析这张3D打印机的照片，检测打印状态和质量问题。
+        Returns:
+            str: 默认分析提示词
+        """
+        return """你是一个专业的3D打印专家和质量检测员。请仔细分析这张3D打印机的照片，检测打印状态和质量问题。
 
 请从以下方面进行分析：
 
@@ -189,6 +207,25 @@ class PrinterMonitoringService:
   "safety_alerts": ["安全警告（如有）"],
   "summary": "整体评估总结"
 }"""
+
+    async def _analyze_printer_image(self, image_data: bytes) -> str:
+        """
+        使用LLM分析3D打印机图片
+
+        Args:
+            image_data: 图片数据（bytes格式）
+
+        Returns:
+            str: 分析结果
+        """
+        try:
+            logger.info("printer_analysis", f"开始分析3D打印机图片，图片大小: {len(image_data)} bytes")
+
+            # 将图片转换为base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+            # 加载3D打印机专用分析提示词
+            printer_analysis_prompt = self._load_analysis_prompt()
 
             # 构建包含图片的消息
             messages = [
