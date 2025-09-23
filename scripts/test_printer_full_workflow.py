@@ -12,6 +12,8 @@ from datetime import datetime
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.models import ServiceRequest
+from infrastructure.llm.client import LLMClient
 from services.printer_monitoring.service import PrinterMonitoringService
 
 
@@ -21,7 +23,8 @@ async def test_full_workflow():
     print("=" * 60)
 
     # 创建服务实例
-    service = PrinterMonitoringService()
+    llm_client = LLMClient()
+    service = PrinterMonitoringService(llm_client)
 
     print(f"🔧 服务名称: {service.get_service_name()}")
     print(f"📋 支持操作: {service.get_supported_actions()}")
@@ -47,42 +50,49 @@ async def test_full_workflow():
     print("-" * 60)
 
     try:
-        # 调用简化版检测方法
-        result = await service.check_printer_status_simple()
+        # 创建服务请求
+        service_request = ServiceRequest(
+            action="check_printer_status",
+            payload={}
+        )
+
+        # 调用服务处理方法
+        service_response = await service.process(service_request)
 
         # 显示结果
         print("\n📊 检测结果:")
-        print(f"✅ 成功状态: {result.success}")
+        print(f"✅ 成功状态: {service_response.success}")
 
-        if result.success:
-            print(f"🔍 打印机状态: {result.status}")
-            print(f"📸 图片截取: {'✅ 成功' if result.image_captured else '❌ 失败'}")
-            print(f"🤖 分析模型: {result.analysis_model}")
-            print(f"📏 质量评分: {result.quality_score}/100")
+        if service_response.success:
+            data = service_response.data
+            print(f"🔍 打印机状态: {data.get('status', 'unknown')}")
+            print(f"📸 图片截取: {'✅ 成功' if data.get('image_captured', False) else '❌ 失败'}")
+            print(f"🤖 分析模型: {data.get('analysis_model', '')}")
+            print(f"📏 质量评分: {data.get('quality_score', 0)}/100")
 
-            if result.issues:
+            if data.get('issues'):
                 print("⚠️  发现问题:")
-                for issue in result.issues:
+                for issue in data.get('issues', []):
                     print(f"   • {issue}")
 
-            if result.recommendations:
+            if data.get('recommendations'):
                 print("💡 改进建议:")
-                for rec in result.recommendations:
+                for rec in data.get('recommendations', []):
                     print(f"   • {rec}")
 
-            if result.safety_alerts:
+            if data.get('safety_alerts'):
                 print("🚨 安全警告:")
-                for alert in result.safety_alerts:
+                for alert in data.get('safety_alerts', []):
                     print(f"   • {alert}")
 
-            if result.summary:
+            if data.get('summary'):
                 print("\n📝 AI分析总结:")
-                print(f"   {result.summary}")
+                print(f"   {data.get('summary', '')}")
 
             # 显示元数据
-            if result.metadata:
+            if data.get('metadata'):
                 print("\n🔍 技术详情:")
-                for key, value in result.metadata.items():
+                for key, value in data.get('metadata', {}).items():
                     if key == "camera_url":
                         print(f"   📷 摄像头URL: {value}")
                     elif key == "image_size":
@@ -101,16 +111,8 @@ async def test_full_workflow():
             # 构建可序列化的结果数据
             result_data = {
                 "timestamp": timestamp,
-                "success": result.success,
-                "status": result.status,
-                "quality_score": result.quality_score,
-                "issues": result.issues,
-                "recommendations": result.recommendations,
-                "safety_alerts": result.safety_alerts,
-                "summary": result.summary,
-                "image_captured": result.image_captured,
-                "analysis_model": result.analysis_model,
-                "metadata": result.metadata
+                "success": service_response.success,
+                "data": data
             }
 
             with open(result_file, 'w', encoding='utf-8') as f:
@@ -121,7 +123,7 @@ async def test_full_workflow():
             return True
 
         else:
-            print(f"❌ 检测失败: {result.error}")
+            print(f"❌ 检测失败: {service_response.error}")
             return False
 
     except Exception as e:
@@ -137,7 +139,9 @@ async def test_multiple_runs():
     print("\n🔄 多次运行稳定性测试")
     print("-" * 40)
 
-    service = PrinterMonitoringService()
+    # 创建服务实例
+    llm_client = LLMClient()
+    service = PrinterMonitoringService(llm_client)
     success_count = 0
     total_runs = 3
 
@@ -145,13 +149,21 @@ async def test_multiple_runs():
         print(f"\n🎯 第 {i+1}/{total_runs} 次测试...")
 
         try:
-            result = await service.check_printer_status_simple()
+            # 创建服务请求
+            service_request = ServiceRequest(
+                action="check_printer_status",
+                payload={}
+            )
 
-            if result.success:
+            # 调用服务处理方法
+            service_response = await service.process(service_request)
+
+            if service_response.success:
                 success_count += 1
-                print(f"✅ 第 {i+1} 次成功 - 状态: {result.status}")
+                data = service_response.data
+                print(f"✅ 第 {i+1} 次成功 - 状态: {data.get('status', 'unknown')}")
             else:
-                print(f"❌ 第 {i+1} 次失败: {result.error}")
+                print(f"❌ 第 {i+1} 次失败: {service_response.error}")
 
         except Exception as e:
             print(f"❌ 第 {i+1} 次异常: {str(e)}")

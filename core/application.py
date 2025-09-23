@@ -191,7 +191,7 @@ class ApplicationBuilder:
         # 注册服务
         registry.register("chat", ChatService(llm_client, mcp_manager=mcp_manager))
         registry.register("fault_detection", FaultDetectionService(llm_client))
-        registry.register("printer_monitoring", PrinterMonitoringService())
+        registry.register("printer_monitoring", PrinterMonitoringService(llm_client))
 
         # 创建应用
         return Application(registry)
