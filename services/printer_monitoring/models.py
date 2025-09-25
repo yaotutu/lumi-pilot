@@ -27,12 +27,14 @@ class PrinterStatusRequest(BaseModel):
 class PrinterStatusResponse(BaseModel):
     """3D打印机状态检测响应模型"""
     success: bool
-    status: str  # working, idle, error
-    quality_score: int = 0  # 0-100
-    issues: list[str] = []
-    recommendations: list[str] = []
-    safety_alerts: list[str] = []
+    has_issues: bool = False
+    status: str = ""  # 正常, 需关注, 需立即处理
+    issue: Optional[str] = None
+    suggestion: Optional[str] = None
+    confidence: str = ""  # 高, 中, 低
+    printer_status: str = ""  # printing, idle, error
     summary: str = ""
+    timestamp: str = ""  # ISO格式时间戳
     image_captured: bool = False
     analysis_model: str = ""
     metadata: dict[str, Any] = {}

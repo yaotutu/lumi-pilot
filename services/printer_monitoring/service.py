@@ -363,20 +363,30 @@ class PrinterMonitoringService:
                     json_str = analysis_result[start_idx:end_idx]
                     parsed_result = json.loads(json_str)
 
-                    response_data["status"] = parsed_result.get("status", "unknown")
-                    response_data["quality_score"] = parsed_result.get("quality_score", 0)
-                    response_data["issues"] = parsed_result.get("issues", [])
-                    response_data["recommendations"] = parsed_result.get("recommendations", [])
-                    response_data["safety_alerts"] = parsed_result.get("safety_alerts", [])
+                    response_data["has_issues"] = parsed_result.get("has_issues", False)
+                    response_data["status"] = parsed_result.get("status", "未知")
+                    response_data["issue"] = parsed_result.get("issue")
+                    response_data["suggestion"] = parsed_result.get("suggestion")
+                    response_data["confidence"] = parsed_result.get("confidence", "低")
+                    response_data["printer_status"] = parsed_result.get("printer_status", "unknown")
                     response_data["summary"] = parsed_result.get("summary", "")
+                    response_data["timestamp"] = parsed_result.get("timestamp", "")
                 else:
-                    response_data["status"] = "analyzed"
+                    response_data["has_issues"] = True
+                    response_data["status"] = "需要人工检查"
                     response_data["summary"] = analysis_result
+                    response_data["confidence"] = "低"
+                    response_data["printer_status"] = "unknown"
+                    response_data["timestamp"] = datetime.now().isoformat() + "Z"
             except json.JSONDecodeError:
-                response_data["status"] = "analyzed"
+                response_data["has_issues"] = True
+                response_data["status"] = "需要人工检查"
                 response_data["summary"] = analysis_result
+                response_data["confidence"] = "低"
+                response_data["printer_status"] = "unknown"
+                response_data["timestamp"] = datetime.now().isoformat() + "Z"
 
-            logger.info("monitoring", f"检测完成，状态: {response_data['status']}, 评分: {response_data.get('quality_score', 0)}")
+            logger.info("monitoring", f"检测完成，状态: {response_data['status']}, 是否有问题: {response_data.get('has_issues', False)}")
 
             return ServiceResponse.success_response(
                 data=response_data,
