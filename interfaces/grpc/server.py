@@ -64,8 +64,9 @@ class GRPCServer:
             max_workers = settings.grpc.max_workers
             logger.info("grpc_server", f"gRPC服务器工作线程数: {max_workers}")
 
-            # 创建gRPC服务器
-            self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
+            # 创建gRPC服务器，禁用端口复用（端口独占模式）
+            options = [('grpc.so_reuseport', 0)]  # 禁用端口复用
+            self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers), options=options)
 
             # 注册服务处理器
             service_handler = LumiPilotServiceHandler(self.application)
@@ -73,11 +74,20 @@ class GRPCServer:
 
             # 添加监听端口
             listen_addr = f"{self.host}:{self.port}"
-            self.server.add_insecure_port(listen_addr)
+            actual_port = self.server.add_insecure_port(listen_addr)
+
+            # 检查端口是否被成功分配
+            if actual_port == 0:
+                raise RuntimeError(f"端口 {self.port} 已被占用，启用端口独占模式后只能有一个服务实例运行")
+            elif actual_port != self.port:
+                logger.warning("grpc_server", f"请求端口 {self.port} 不可用，gRPC已自动分配端口 {actual_port}")
+                self.port = actual_port
+                listen_addr = f"{self.host}:{self.port}"
 
             # 启动服务器
             self.server.start()
-            logger.info("grpc_server", f"gRPC服务器已启动，监听地址: {listen_addr}")
+            import os
+            logger.info("grpc_server", f"gRPC服务器已启动，监听地址: {listen_addr} (PID: {os.getpid()})")
 
             # 设置信号处理器
             self._setup_signal_handlers()
