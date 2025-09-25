@@ -6,12 +6,12 @@ from pathlib import Path
 
 from core.models import HealthStatus, ServiceRequest, ServiceResponse
 from infrastructure.llm.client import LLMClient
+from infrastructure.logging.logger import get_logger
 from infrastructure.mcp.client import MCPManager
 
 # 移除了personality导入，现在直接使用配置文件
 from .models import ChatRequest
 
-from infrastructure.logging.logger import get_logger
 logger = get_logger(__name__)
 
 
@@ -42,10 +42,10 @@ class ChatService:
         # 从配置文件获取人物设定
         from infrastructure.config import get_settings
         settings = get_settings()
-        
+
         # 加载系统提示词
         self.system_prompt = self._load_system_prompt(settings)
-    
+
     def _load_system_prompt(self, settings) -> str:
         """
         加载系统提示词
@@ -59,11 +59,11 @@ class ChatService:
         try:
             # 从配置中获取提示词文件路径
             prompt_path = Path(settings.personality.prompt_file)
-            
+
             # 如果是相对路径，基于项目根目录
             if not prompt_path.is_absolute():
                 prompt_path = Path(__file__).parent.parent.parent / prompt_path
-            
+
             # 如果文件存在，加载外部提示词
             if prompt_path.exists():
                 with open(prompt_path, 'r', encoding='utf-8') as f:
@@ -73,11 +73,11 @@ class ChatService:
                     if '{name}' in system_prompt:
                         system_prompt = system_prompt.format(name=name)
                     return system_prompt
-            
+
             # 回退到配置文件中的提示词
             logger.warning("prompt", f"提示词文件不存在，使用配置文件中的提示词: {prompt_path}")
             return settings.personality.system_prompt
-            
+
         except Exception as e:
             logger.error("prompt", f"加载提示词失败，使用配置文件中的提示词: {str(e)}")
             return settings.personality.system_prompt

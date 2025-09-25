@@ -6,15 +6,14 @@ import base64
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from core.models import HealthStatus, ServiceRequest, ServiceResponse
 from infrastructure.camera.capture import CameraCaptureClient
 from infrastructure.config.settings import get_settings
-from infrastructure.logging.logger import get_logger
 from infrastructure.llm.client import LLMClient
+from infrastructure.logging.logger import get_logger
 
-from .models import PrinterStatusRequest, PrinterStatusResponse
+from .models import PrinterStatusRequest
 
 logger = get_logger(__name__)
 
@@ -146,20 +145,20 @@ class PrinterMonitoringService:
         try:
             # 从配置中获取提示词文件路径
             prompt_path = Path(self.config.prompt_file)
-            
+
             # 如果是相对路径，基于项目根目录
             if not prompt_path.is_absolute():
                 prompt_path = Path(__file__).parent.parent.parent / prompt_path
-            
+
             # 如果文件存在，加载外部提示词
             if prompt_path.exists():
                 with open(prompt_path, 'r', encoding='utf-8') as f:
                     return f.read().strip()
-            
+
             # 回退到默认提示词
             logger.warning("prompt", f"提示词文件不存在，使用默认提示词: {prompt_path}")
             return self._get_default_analysis_prompt()
-            
+
         except Exception as e:
             logger.error("prompt", f"加载提示词失败，使用默认提示词: {str(e)}")
             return self._get_default_analysis_prompt()
@@ -363,7 +362,7 @@ class PrinterMonitoringService:
                     end_idx = analysis_result.rfind("}") + 1
                     json_str = analysis_result[start_idx:end_idx]
                     parsed_result = json.loads(json_str)
-                    
+
                     response_data["status"] = parsed_result.get("status", "unknown")
                     response_data["quality_score"] = parsed_result.get("quality_score", 0)
                     response_data["issues"] = parsed_result.get("issues", [])
@@ -378,7 +377,7 @@ class PrinterMonitoringService:
                 response_data["summary"] = analysis_result
 
             logger.info("monitoring", f"检测完成，状态: {response_data['status']}, 评分: {response_data.get('quality_score', 0)}")
-            
+
             return ServiceResponse.success_response(
                 data=response_data,
                 service_name=self.service_name,
