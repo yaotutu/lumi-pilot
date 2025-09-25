@@ -129,8 +129,8 @@ lumi-pilot/
 │   └── utils/          # 工具函数
 ├── logs/               # 日志文件
 ├── prompts/            # 提示词文件
-│   ├── chat/           # 聊天服务提示词
-│   └── printer_monitoring/  # 打印机监控提示词
+│   ├── chat_prompt.txt    # 聊天服务提示词
+│   └── printer_prompt.txt # 打印机监控提示词
 ├── tests/              # 测试文件
 └── pyproject.toml      # 项目配置
 ```
@@ -139,18 +139,21 @@ lumi-pilot/
 
 本项目采用外部文件管理提示词的方式，便于维护和修改。
 
-### 提示词文件位置
+### 配置方式
 
-- 聊天服务提示词: `prompts/chat/system_prompt.txt`
-- 打印机监控提示词: `prompts/printer_monitoring/analysis_prompt.txt`
+提示词文件路径在配置文件中指定：
+
+- 聊天服务提示词文件: `personality.prompt_file` (默认: `prompts/chat_prompt.txt`)
+- 打印机监控提示词文件: `printer_monitoring.prompt_file` (默认: `prompts/printer_prompt.txt`)
 
 ### 自定义提示词
 
-要自定义提示词，只需修改对应的 `.txt` 文件即可，无需更改代码。
+1. 修改配置文件中的 `prompt_file` 字段指向自定义提示词文件
+2. 或者直接修改默认的提示词文件
 
 ### 提示词加载机制
 
-服务启动时会自动从外部文件加载提示词，如果文件不存在则使用默认提示词。
+服务启动时会根据配置文件中的路径加载提示词，如果文件不存在则使用配置中内联的提示词。
 
 ## 开发
 

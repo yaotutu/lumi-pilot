@@ -57,12 +57,12 @@ class ChatService:
             str: 系统提示词
         """
         try:
-            # 构建提示词文件路径
-            prompt_path = Path(__file__).parent / "prompts" / "system_prompt.txt"
+            # 从配置中获取提示词文件路径
+            prompt_path = Path(settings.personality.prompt_file)
             
-            # 如果特定于聊天的提示词文件不存在，尝试通用路径
-            if not prompt_path.exists():
-                prompt_path = Path(__file__).parent.parent.parent / "prompts" / "chat" / "system_prompt.txt"
+            # 如果是相对路径，基于项目根目录
+            if not prompt_path.is_absolute():
+                prompt_path = Path(__file__).parent.parent.parent / prompt_path
             
             # 如果文件存在，加载外部提示词
             if prompt_path.exists():

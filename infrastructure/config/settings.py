@@ -52,6 +52,7 @@ class PrinterMonitoringConfig(BaseModel):
     capture_timeout: int = Field(default=15, description="截图超时时间（秒）")
     analysis_model: str = Field(default="zai-org/GLM-4.5V", description="视觉分析模型")
     max_debug_files: int = Field(default=100, description="最大调试文件数量")
+    prompt_file: str = Field(default="prompts/printer_prompt.txt", description="3D打印机分析提示词文件路径")
 
 
 class MCPConfig(BaseModel):
@@ -82,6 +83,7 @@ class PersonalityConfig(BaseModel):
     name: str = Field(default="Lumi", description="人物名称")
     description: str = Field(default="友善活泼的AI助手", description="人物描述")
     system_prompt: str = Field(..., description="系统提示词")
+    prompt_file: str = Field(default="prompts/chat_prompt.txt", description="提示词文件路径")
     humor_level: int = Field(default=7, description="幽默感 (0-10)")
     energy_level: int = Field(default=8, description="活泼程度 (0-10)")
     caring_level: int = Field(default=9, description="关心程度 (0-10)")

@@ -41,6 +41,7 @@ debug_save_path = "debug/printer_monitoring"             # 调试文件保存路
 capture_timeout = 15                                      # 截图超时时间（秒）
 analysis_model = "zai-org/GLM-4.5V"                     # 视觉分析模型名称
 max_debug_files = 100                                     # 最大保留的调试文件数量（超出会自动删除旧文件）
+prompt_file = "prompts/printer_prompt.txt"              # 3D打印机分析提示词文件路径
 
 [mcp]
 # MCP服务器配置
@@ -82,6 +83,9 @@ system_prompt = """
 
 请用中文回复，保持回答简洁明了，准确有用。
 """
+
+# 提示词文件路径
+prompt_file = "prompts/chat_prompt.txt"
 
 # 个性参数
 humor_level = 7  # 幽默感 (0-10)
