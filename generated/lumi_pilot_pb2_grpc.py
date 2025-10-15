@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import lumi_pilot_pb2 as lumi__pilot__pb2
+from generated import lumi_pilot_pb2 as lumi__pilot__pb2
 
 GRPC_GENERATED_VERSION = '1.74.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in lumi_pilot_pb2_grpc.py depends on'
+        + f' but the generated code in lumi_pilot_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'

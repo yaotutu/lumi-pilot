@@ -131,60 +131,29 @@ class LumiPilotServiceHandler(lumi_pilot_pb2_grpc.LumiPilotServiceServicer):
             # 构建响应
             if response.success:
                 data = response.data
-                logger.info("grpc_printer", f"打印机监控完成: {data.get('status', 'unknown')}")
-
-                # 提取调试信息
-                metadata_info = data.get("metadata", {})
+                logger.info("grpc_printer", f"打印机监控完成")
 
                 return lumi_pilot_pb2.PrinterMonitorResponse(
                     success=True,
                     has_issues=data.get("has_issues", False),
-                    status=data.get("status", "未知"),
                     issue=data.get("issue", ""),
                     suggestion=data.get("suggestion", ""),
                     confidence=data.get("confidence", "低"),
-                    printer_status=data.get("printer_status", "unknown"),
                     summary=data.get("summary", ""),
                     timestamp=data.get("timestamp", ""),
-                    image_captured=data.get("image_captured", False),
-                    analysis_model=data.get("analysis_model", ""),
-                    error="",
-                    metadata=lumi_pilot_pb2.PrinterMonitorMetadata(
-                        request_id=response.metadata.request_id,
-                        duration=response.metadata.duration or 0.0,
-                        timestamp=response.metadata.timestamp.isoformat(),
-                        camera_url=metadata_info.get("camera_url", ""),
-                        image_size=metadata_info.get("image_size", 0),
-                        debug_mode=metadata_info.get("debug_mode", False),
-                        debug_image_file=metadata_info.get("image_file", ""),
-                        debug_result_file=metadata_info.get("result_file", "")
-                    )
+                    error=""
                 )
             else:
                 logger.error("grpc_printer", f"打印机监控失败: {response.error}")
                 return lumi_pilot_pb2.PrinterMonitorResponse(
                     success=False,
                     has_issues=True,
-                    status="错误",
                     issue="",
                     suggestion="",
                     confidence="低",
-                    printer_status="error",
                     summary="",
                     timestamp="",
-                    image_captured=False,
-                    analysis_model="",
-                    error=response.error or "未知错误",
-                    metadata=lumi_pilot_pb2.PrinterMonitorMetadata(
-                        request_id=response.metadata.request_id,
-                        duration=response.metadata.duration or 0.0,
-                        timestamp=response.metadata.timestamp.isoformat(),
-                        camera_url="",
-                        image_size=0,
-                        debug_mode=False,
-                        debug_image_file="",
-                        debug_result_file=""
-                    )
+                    error=response.error or "未知错误"
                 )
 
         except Exception as e:
@@ -192,24 +161,10 @@ class LumiPilotServiceHandler(lumi_pilot_pb2_grpc.LumiPilotServiceServicer):
             return lumi_pilot_pb2.PrinterMonitorResponse(
                 success=False,
                 has_issues=True,
-                status="错误",
                 issue="",
                 suggestion="",
                 confidence="低",
-                printer_status="error",
                 summary="",
                 timestamp="",
-                image_captured=False,
-                analysis_model="",
-                error=f"服务内部错误: {str(e)}",
-                metadata=lumi_pilot_pb2.PrinterMonitorMetadata(
-                    request_id="error",
-                    duration=0.0,
-                    timestamp=str(__import__('time').time()),
-                    camera_url="",
-                    image_size=0,
-                    debug_mode=False,
-                    debug_image_file="",
-                    debug_result_file=""
-                )
+                error=f"服务内部错误: {str(e)}"
             )
