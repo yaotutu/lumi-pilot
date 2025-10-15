@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class PrinterAPIClient:
     """打印机API客户端"""
 
-    def __init__(self, base_url: str | None = None, timeout: int | None = None, debug: bool | None = None):
+    def __init__(self, base_url: str | None = None, timeout: int | None = None, debug: bool | None = None, client_id: str | None = None):
         """
         初始化打印机API客户端
 
@@ -23,6 +23,7 @@ class PrinterAPIClient:
             base_url: 打印机API基础URL（如果为None，从配置文件读取）
             timeout: 请求超时时间（秒，如果为None，从配置文件读取）
             debug: 是否打印原始数据（如果为None，从配置文件读取）
+            client_id: 客户端标识（如果为None，从配置文件读取）
         """
         # 从配置文件读取默认值
         settings = get_settings()
@@ -30,14 +31,17 @@ class PrinterAPIClient:
         self.base_url = (base_url or settings.printer.base_url).rstrip('/')
         self.timeout = timeout or settings.printer.timeout
         self.debug = debug if debug is not None else settings.printer.debug
+        self.client_id = client_id or settings.printer.client_id
         self.headers = {
             "Content-Type": "application/json",
-            "User-Agent": "Lumi-Pilot-MCP/1.0"
+            "User-Agent": "Lumi-Pilot-MCP/1.0",
+            "client_id": self.client_id
         }
-        logger.info("printer_client", f"初始化打印机客户端: {self.base_url}")
+        logger.info("printer_client", f"初始化打印机客户端: {self.base_url}, Client ID: {self.client_id}")
         if self.debug:
             print("\n🔧 [DEBUG] 初始化打印机客户端")
             print(f"📡 [DEBUG] Base URL: {self.base_url}")
+            print(f"🆔 [DEBUG] Client ID: {self.client_id}")
             print(f"⏱️  [DEBUG] 超时时间: {self.timeout}秒")
             print(f"📋 [DEBUG] 请求头: {self.headers}")
 

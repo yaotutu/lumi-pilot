@@ -23,6 +23,7 @@ timeout = 30
 [printer]
 # 打印机配置
 base_url = "http://192.168.1.100:9080"  # 请替换为您的打印机地址
+client_id = "lumi-pilot-default"  # 客户端标识ID，用于标识请求来源
 timeout = 10
 debug = true
 

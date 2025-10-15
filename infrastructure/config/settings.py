@@ -39,6 +39,7 @@ class PrinterEndpoints(BaseModel):
 class PrinterConfig(BaseModel):
     """打印机配置"""
     base_url: str = Field(..., description="打印机API基础URL")
+    client_id: str = Field(default="lumi-pilot-default", description="客户端标识ID")
     timeout: int = Field(default=10, description="请求超时时间")
     debug: bool = Field(default=True, description="调试模式")
     endpoints: PrinterEndpoints = Field(..., description="API端点")
