@@ -34,6 +34,7 @@ print_document = "/api/v1.0/home/print/document"
 print_queue = "/api/v1.0/home/print/queue"
 print_progress = "/api/v1.0/home/print/progress"
 temperature_nozzle = "/api/v1.0/temperature/nozzle"
+temperature_bed = "/api/v1.0/temperature/bed"
 
 [printer_monitoring]
 # 3D打印机监控配置

@@ -135,6 +135,116 @@ class PrinterHandlers:
                 "status": "unknown"
             }
 
+    async def set_nozzle_temperature(self, temperature: float) -> dict:
+        """设置喷嘴温度"""
+        logger.info("printer_handlers", f"设置喷嘴温度: {temperature}°C")
+
+        try:
+            # 验证温度范围（常见的3D打印机喷嘴温度范围）
+            if temperature < 0 or temperature > 500:
+                raise ValueError(f"温度值超出合理范围: {temperature}°C (应在0-500°C之间)")
+
+            # 准备请求数据
+            temperature_data = {
+                "temperature": str(temperature)  # API要求字符串格式
+            }
+
+            # 调用设置喷嘴温度API
+            temperature_endpoint = self.settings.printer.endpoints.temperature_nozzle
+            result_data = await self.client.post(temperature_endpoint, temperature_data)
+
+            logger.info("printer_handlers", f"喷嘴温度设置成功: {temperature}°C")
+            # 检查API响应格式
+            api_success = False
+            api_message = "设置完成"
+
+            if isinstance(result_data, dict):
+                if result_data.get("code") == 200:
+                    api_success = True
+                    api_message = result_data.get("msg", "设置成功")
+                elif result_data.get("success") is True:
+                    api_success = True
+                    api_message = result_data.get("message", "设置成功")
+
+            return {
+                "success": api_success,
+                "temperature": temperature,
+                "message": f"喷嘴温度已设置为 {temperature}°C - {api_message}",
+                "api_response": result_data
+            }
+
+        except ValueError as e:
+            error_msg = f"温度设置参数错误: {str(e)}"
+            logger.error("printer_handlers", error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "temperature": temperature
+            }
+        except Exception as e:
+            error_msg = f"设置喷嘴温度失败: {str(e)}"
+            logger.error("printer_handlers", error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "temperature": temperature
+            }
+
+    async def set_bed_temperature(self, temperature: float) -> dict:
+        """设置热床温度"""
+        logger.info("printer_handlers", f"设置热床温度: {temperature}°C")
+
+        try:
+            # 验证温度范围（常见的3D打印机热床温度范围）
+            if temperature < 0 or temperature > 150:
+                raise ValueError(f"热床温度值超出合理范围: {temperature}°C (应在0-150°C之间)")
+
+            # 准备请求数据
+            temperature_data = {
+                "temperature": str(temperature)  # API要求字符串格式
+            }
+
+            # 调用设置热床温度API
+            temperature_endpoint = self.settings.printer.endpoints.temperature_bed
+            result_data = await self.client.post(temperature_endpoint, temperature_data)
+
+            logger.info("printer_handlers", f"热床温度设置成功: {temperature}°C")
+            # 检查API响应格式
+            api_success = False
+            api_message = "设置完成"
+
+            if isinstance(result_data, dict):
+                if result_data.get("code") == 200:
+                    api_success = True
+                    api_message = result_data.get("msg", "设置成功")
+                elif result_data.get("success") is True:
+                    api_success = True
+                    api_message = result_data.get("message", "设置成功")
+
+            return {
+                "success": api_success,
+                "temperature": temperature,
+                "message": f"热床温度已设置为 {temperature}°C - {api_message}",
+                "api_response": result_data
+            }
+
+        except ValueError as e:
+            error_msg = f"热床温度设置参数错误: {str(e)}"
+            logger.error("printer_handlers", error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "temperature": temperature
+            }
+        except Exception as e:
+            error_msg = f"设置热床温度失败: {str(e)}"
+            logger.error("printer_handlers", error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "temperature": temperature
+            }
+
 
 # 创建全局实例（同步封装）
 _printer_handler_instance = None
@@ -185,4 +295,23 @@ def get_printer_progress(job_id: str) -> dict:
     except RuntimeError:
         handler = get_printer_handler()
         return asyncio.run(handler.get_printer_progress_sse(job_id))
+
+
+def set_nozzle_temperature(temperature: float) -> dict:
+    """设置喷嘴温度（同步版本）"""
+    try:
+        # 检查是否在事件循环中运行
+        loop = asyncio.get_running_loop()
+        # 如果在事件循环中，创建任务来执行异步函数
+        logger.info("printer_handlers", "在事件循环中调用，使用create_task执行")
+        loop.create_task(get_printer_handler().set_nozzle_temperature(temperature))
+        # 注意：这里我们不能直接等待，因为MCP工具需要同步返回
+        # 但我们需要返回一个合理的响应而不是错误
+        # 由于这是MCP工具调用的特殊情况，我们直接执行同步版本
+        handler = get_printer_handler()
+        return asyncio.run(handler.set_nozzle_temperature(temperature))
+    except RuntimeError:
+        # 不在事件循环中，正常使用asyncio.run
+        handler = get_printer_handler()
+        return asyncio.run(handler.set_nozzle_temperature(temperature))
 

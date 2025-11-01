@@ -29,6 +29,32 @@ def register_printer_tools(mcp: FastMCP) -> int:
         return await handler.get_printer_status()
     registered_count = registered_count + 1
 
+    @mcp.tool
+    async def printer_set_nozzle_temperature(temperature: float) -> dict:
+        """
+        设置喷嘴温度 - 通过API设置打印机喷嘴目标温度
+
+        Args:
+            temperature: 目标温度值（摄氏度），范围0-500
+        """
+        handler = get_printer_handler()
+        result = await handler.set_nozzle_temperature(temperature)
+        return result
+    registered_count = registered_count + 1
+
+    @mcp.tool
+    async def printer_set_bed_temperature(temperature: float) -> dict:
+        """
+        设置热床温度 - 通过API设置打印机热床目标温度
+
+        Args:
+            temperature: 目标温度值（摄氏度），范围0-150
+        """
+        handler = get_printer_handler()
+        result = await handler.set_bed_temperature(temperature)
+        return result
+    registered_count = registered_count + 1
+
     # @mcp.tool
     # async def printer_print(content: str, printer_name: str = "default") -> str:
     #     """打印文档 - 发送文档到指定打印机进行打印"""
