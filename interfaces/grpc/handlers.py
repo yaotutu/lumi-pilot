@@ -131,7 +131,7 @@ class LumiPilotServiceHandler(lumi_pilot_pb2_grpc.LumiPilotServiceServicer):
             # 构建响应
             if response.success:
                 data = response.data
-                logger.info("grpc_printer", f"打印机监控完成")
+                logger.info("grpc_printer", "打印机监控完成")
 
                 return lumi_pilot_pb2.PrinterMonitorResponse(
                     success=True,
