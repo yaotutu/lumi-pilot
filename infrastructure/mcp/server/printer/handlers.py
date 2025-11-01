@@ -245,6 +245,61 @@ class PrinterHandlers:
                 "temperature": temperature
             }
 
+    async def set_inner_temperature(self, temperature: float) -> dict:
+        """设置舱内温度"""
+        logger.info("printer_handlers", f"设置舱内温度: {temperature}°C")
+
+        try:
+            # 验证温度范围（常见的3D打印机舱内温度范围）
+            if temperature < 0 or temperature > 80:
+                raise ValueError(f"舱内温度值超出合理范围: {temperature}°C (应在0-80°C之间)")
+
+            # 准备请求数据
+            temperature_data = {
+                "temperature": str(temperature)  # API要求字符串格式
+            }
+
+            # 调用设置舱内温度API
+            temperature_endpoint = self.settings.printer.endpoints.temperature_inner
+            result_data = await self.client.post(temperature_endpoint, temperature_data)
+
+            logger.info("printer_handlers", f"舱内温度设置成功: {temperature}°C")
+            # 检查API响应格式
+            api_success = False
+            api_message = "设置完成"
+
+            if isinstance(result_data, dict):
+                if result_data.get("code") == 200:
+                    api_success = True
+                    api_message = result_data.get("msg", "设置成功")
+                elif result_data.get("success") is True:
+                    api_success = True
+                    api_message = result_data.get("message", "设置成功")
+
+            return {
+                "success": api_success,
+                "temperature": temperature,
+                "message": f"舱内温度已设置为 {temperature}°C - {api_message}",
+                "api_response": result_data
+            }
+
+        except ValueError as e:
+            error_msg = f"舱内温度设置参数错误: {str(e)}"
+            logger.error("printer_handlers", error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "temperature": temperature
+            }
+        except Exception as e:
+            error_msg = f"设置舱内温度失败: {str(e)}"
+            logger.error("printer_handlers", error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "temperature": temperature
+            }
+
 
 # 创建全局实例（同步封装）
 _printer_handler_instance = None

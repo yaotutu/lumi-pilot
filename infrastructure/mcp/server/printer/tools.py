@@ -55,6 +55,19 @@ def register_printer_tools(mcp: FastMCP) -> int:
         return result
     registered_count = registered_count + 1
 
+    @mcp.tool
+    async def printer_set_inner_temperature(temperature: float) -> dict:
+        """
+        设置舱内温度 - 通过API设置打印机舱内目标温度
+
+        Args:
+            temperature: 目标温度值（摄氏度），范围0-80
+        """
+        handler = get_printer_handler()
+        result = await handler.set_inner_temperature(temperature)
+        return result
+    registered_count = registered_count + 1
+
     # @mcp.tool
     # async def printer_print(content: str, printer_name: str = "default") -> str:
     #     """打印文档 - 发送文档到指定打印机进行打印"""

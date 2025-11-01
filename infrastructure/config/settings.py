@@ -36,6 +36,7 @@ class PrinterEndpoints(BaseModel):
     print_progress: str = Field(..., description="打印进度端点")
     temperature_nozzle: str = Field(..., description="喷嘴温度设置端点")
     temperature_bed: str = Field(..., description="热床温度设置端点")
+    temperature_inner: str = Field(..., description="舱内温度设置端点")
 
 
 class PrinterConfig(BaseModel):
