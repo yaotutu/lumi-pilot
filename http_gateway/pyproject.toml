@@ -1,0 +1,26 @@
+[project]
+name = "lumi-pilot-http-gateway"
+version = "0.1.0"
+description = "临时 HTTP 网关，用于将 HTTP 请求转发到 Lumi Pilot gRPC 服务器"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "protobuf>=4.0.0",
+    "pydantic>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["http_gateway"]
+
+[tool.uv]
+dev-dependencies = [
+    "httpx>=0.26.0",  # 用于测试
+]
